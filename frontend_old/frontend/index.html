@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mirror AI - Login</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container header">
+    <h1>Mirror AI</h1>
+    <p class="tagline">"Pehli baar interview mein jaane se pehle — hazaar baar practice karo"</p>
+  </div>
+
+  <div class="container" style="max-width: 400px; text-align: center;">
+    <div class="card">
+      <h2>Welcome Back</h2>
+      <p style="color: var(--text-muted); margin-bottom: 2rem;">Sign in to start practicing</p>
+      
+      <div style="margin-bottom: 1rem; text-align: left;">
+        <label for="email-input" style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Email</label>
+        <input type="email" id="email-input" placeholder="you@example.com" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white;">
+      </div>
+      <div style="margin-bottom: 1.5rem; text-align: left;">
+        <label for="password-input" style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Password</label>
+        <input type="password" id="password-input" placeholder="••••••••" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white;">
+      </div>
+
+      <button id="email-login-btn" class="btn" style="width: 100%; font-weight: 600; margin-bottom: 0.5rem;">
+        Sign In
+      </button>
+      <button id="email-signup-btn" class="btn" style="width: 100%; font-weight: 600; background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-bottom: 1.5rem;">
+        Create Account
+      </button>
+
+      <div style="color: var(--text-muted); margin-bottom: 1rem; position: relative;">
+        <span style="background: #1e1e1e; padding: 0 10px; position: relative; z-index: 1;">OR</span>
+        <hr style="position: absolute; top: 50%; left: 0; right: 0; border: none; border-top: 1px solid #444; margin: 0; z-index: 0;">
+      </div>
+
+      <button id="google-login-btn" class="btn" style="width: 100%; font-weight: 600; background: white; color: black;">
+        Sign in with Google
+      </button>
+      <div id="error-msg" style="color: #ef4444; margin-top: 1rem; display: none;"></div>
+    </div>
+  </div>
+
+  <!-- Firebase Scripts -->
+  <script type="module">
+    import { auth, provider, signInWithPopup, db, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from './firebase-config.js';
+    import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const errorMsg = document.getElementById('error-msg');
+    
+    // Redirect if already logged in
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        window.location.href = 'home.html';
+      }
+    });
+
+    async function saveUserToFirestore(user, nameStr) {
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          name: nameStr || user.email.split('@')[0],
+          email: user.email,
+          createdAt: new Date()
+        });
+      }
+    }
+
+    document.getElementById('email-login-btn').addEventListener('click', async () => {
+      const email = document.getElementById('email-input').value;
+      const pass = document.getElementById('password-input').value;
+      if(!email || !pass) return alert("Please enter email and password");
+
+      try {
+        errorMsg.style.display = 'none';
+        await signInWithEmailAndPassword(auth, email, pass);
+        // onAuthStateChanged will handle the redirect
+      } catch (error) {
+        console.error("Login error:", error);
+        errorMsg.innerText = error.message;
+        errorMsg.style.display = 'block';
+      }
+    });
+
+    document.getElementById('email-signup-btn').addEventListener('click', async () => {
+      const email = document.getElementById('email-input').value;
+      const pass = document.getElementById('password-input').value;
+      if(!email || !pass) return alert("Please enter email and password");
+
+      try {
+        errorMsg.style.display = 'none';
+        const result = await createUserWithEmailAndPassword(auth, email, pass);
+        await saveUserToFirestore(result.user, null);
+        // onAuthStateChanged will handle the redirect
+      } catch (error) {
+        console.error("Signup error:", error);
+        errorMsg.innerText = error.message;
+        errorMsg.style.display = 'block';
+      }
+    });
+
+    document.getElementById('google-login-btn').addEventListener('click', async () => {
+      try {
+        errorMsg.style.display = 'none';
+        const result = await signInWithPopup(auth, provider);
+        await saveUserToFirestore(result.user, result.user.displayName);
+        // onAuthStateChanged will handle the redirect
+      } catch (error) {
+        console.error("Google Login error:", error);
+        errorMsg.innerText = error.message;
+        errorMsg.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mirror AI - Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .dashboard-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Stats Row */
+    .stats-row {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: repeat(2, 1fr);
+    }
+    @media (min-width: 1024px) {
+      .stats-row { grid-template-columns: repeat(4, 1fr); }
+    }
+    
+    .stat-card {
+      padding: 24px;
+    }
+    .stat-label {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 8px;
+    }
+    .stat-change {
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .text-up { color: var(--accent-success); }
+
+    /* Middle Row */
+    .middle-row {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 1024px) {
+      .middle-row { grid-template-columns: 6fr 4fr; }
+    }
+    
+    .chart-container {
+      position: relative;
+      height: 250px;
+      width: 100%;
+    }
+    
+    .weak-areas {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .area-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .area-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+
+    /* Recent Sessions */
+    .session-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .session-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+    }
+    .session-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .session-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(0, 217, 255, 0.1);
+      color: var(--accent-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+    .session-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 4px;
+    }
+    .session-meta {
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .score-badge {
+      font-family: 'JetBrains Mono', monospace;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(0, 255, 148, 0.1);
+      color: var(--accent-success);
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .btn-play {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-play:hover {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 15px rgba(0, 217, 255, 0.4);
+    }
+    
+    @media (max-width: 768px) {
+      .session-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      .session-action {
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container page-load">
+    <nav class="navbar" style="margin-bottom: 24px; padding: 12px 0;">
+      <a href="home.html" class="nav-brand" style="font-size: 20px;">
+        <i class="ti ti-arrow-left"></i> 🪞 Mirror AI
+      </a>
+      <div class="nav-actions">
+        <div class="avatar">
+          JS
+        </div>
+      </div>
+    </nav>
+
+    <main class="dashboard-grid">
+      
+      <div class="flex justify-between items-center">
+        <h1 class="space-grotesk" style="font-size: 32px;">Dashboard</h1>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-row">
+        <div class="card stat-card">
+          <div class="stat-label">Total Sessions</div>
+          <div class="stat-value space-grotesk" id="total-interviews">0</div>
+          <div class="stat-change text-up"><i class="ti ti-arrow-up-right"></i> Tracked</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Avg Score</div>
+          <div class="stat-value space-grotesk text-accent" id="avg-score">0<span style="font-size: 18px; color: var(--text-muted);">/10</span></div>
+          <div class="stat-change text-secondary">Overall</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Improvement</div>
+          <div class="stat-value space-grotesk text-success">+-- pts</div>
+          <div class="stat-change text-secondary">Last 30 days</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Peers Met</div>
+          <div class="stat-value space-grotesk">0</div>
+          <div class="stat-change text-secondary">This month</div>
+        </div>
+      </div>
+
+      <!-- Middle Row -->
+      <div class="middle-row">
+        <!-- Chart -->
+        <div class="card">
+          <h3 class="space-grotesk mb-6" style="font-size: 18px;">Score Trend</h3>
+          <div class="chart-container">
+            <canvas id="scoreChart"></canvas>
+          </div>
+        </div>
+        
+        <!-- Weak Areas -->
+        <div class="card">
+          <h3 class="space-grotesk mb-6" style="font-size: 18px;">Weak Areas</h3>
+          <div class="weak-areas" id="weak-areas">
+            <!-- Populated dynamically -->
+            <div class="area-item">
+              <div class="area-label">
+                <span class="text-secondary">Loading...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Sessions Row -->
+      <div class="card" style="margin-bottom: 40px;">
+        <h3 class="space-grotesk mb-6" style="font-size: 18px;">Recent Interviews</h3>
+        <div class="session-list" id="recent-sessions">
+          <p style="color: var(--text-muted)">Loading recent sessions...</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div class="mobile-nav">
+    <a href="home.html"><i class="ti ti-home" style="font-size: 24px;"></i> Home</a>
+    <a href="mock.html"><i class="ti ti-robot" style="font-size: 24px;"></i> AI Mock</a>
+    <a href="peer.html"><i class="ti ti-users" style="font-size: 24px;"></i> Peer</a>
+    <a href="dashboard.html" class="active"><i class="ti ti-layout-dashboard" style="font-size: 24px;"></i> Dash</a>
+  </div>
+
+  <script type="module">
+    import { auth, db, collection, query, where, getDocs, onAuthStateChanged } from './firebase-config.js';
+
+    let scoreChartInstance = null;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        await loadDashboardData(user.uid);
+      } else {
+        window.location.href = 'index.html'; 
+      }
+    });
+
+    async function loadDashboardData(uid) {
+      try {
+        const q = query(
+          collection(db, 'interviews'),
+          where('userId', '==', uid)
+        ); 
+        
+        const querySnapshot = await getDocs(q);
+        const interviews = [];
+        querySnapshot.forEach((doc) => {
+          interviews.push({ id: doc.id, ...doc.data() });
+        });
+        
+        interviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        const total = interviews.length;
+        document.getElementById('total-interviews').innerText = total;
+        
+        if (total === 0) {
+          document.getElementById('avg-score').innerHTML = `0<span style="font-size: 18px; color: var(--text-muted);">/10</span>`;
+          document.getElementById('weak-areas').innerHTML = `<div class="text-secondary">No data yet</div>`;
+          document.getElementById('recent-sessions').innerHTML = `<p style="color: var(--text-muted)">No sessions found. Do a mock interview!</p>`;
+          renderChart([], []);
+          return;
+        }
+
+        let totalScore = 0;
+        const labels = [];
+        const dataPoints = [];
+        let sessionsHtml = '';
+        const weakAreasMap = {}; 
+        
+        const chartInterviews = [...interviews].reverse();
+        
+        chartInterviews.forEach((inv, index) => {
+          labels.push(`Session ${index + 1}`);
+          dataPoints.push(inv.overall_score || 0);
+        });
+
+        interviews.forEach((inv, index) => {
+          totalScore += inv.overall_score || 0;
+          if (inv.weakest_area) {
+            weakAreasMap[inv.weakest_area] = (weakAreasMap[inv.weakest_area] || 0) + 1;
+          }
+          
+          const d = new Date(inv.date);
+          const dateStr = d.toLocaleDateString();
+          
+          // Recreate my new beautiful session list item
+          const iconType = index % 2 === 0 ? '🤖' : '🤖'; // For now all are AI
+          
+          sessionsHtml += `
+            <div class="session-item">
+              <div class="session-info">
+                <div class="session-icon">${iconType}</div>
+                <div>
+                  <div class="session-title">${inv.role || 'Interview'}</div>
+                  <div class="session-meta">
+                    <span class="score-badge">Score: ${inv.overall_score || '--'}/10</span>
+                    <span><i class="ti ti-calendar"></i> ${dateStr}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="session-action">
+                <button class="btn-play"><i class="ti ti-player-play-filled"></i></button>
+              </div>
+            </div>
+          `;
+        });
+        
+        const avg = (totalScore / total).toFixed(1);
+        document.getElementById('avg-score').innerHTML = `${avg}<span style="font-size: 18px; color: var(--text-muted);">/10</span>`;
+        document.getElementById('recent-sessions').innerHTML = sessionsHtml;
+        
+        // Render weak areas with my new progress bars format
+        const sortedWeakAreas = Object.entries(weakAreasMap).sort((a,b) => b[1] - a[1]);
+        let weakAreasHtml = '';
+        const colors = ['text-danger', 'text-warning', 'text-primary'];
+        const fillColors = ['fill-low', 'fill-mid', 'fill-high'];
+
+        sortedWeakAreas.slice(0, 3).forEach(([area, count], idx) => {
+          // Fake percentage based on rank
+          const fakePct = 100 - (idx * 20);
+          weakAreasHtml += `
+            <div class="area-item">
+              <div class="area-label">
+                <span class="${colors[idx]}">${area}</span>
+                <span class="mono text-muted">Frequency: ${count}</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill ${fillColors[idx]}" style="width: ${fakePct}%;"></div></div>
+            </div>
+          `;
+        });
+        
+        document.getElementById('weak-areas').innerHTML = weakAreasHtml || `<div class="text-secondary">None recorded</div>`;
+        
+        renderChart(labels, dataPoints);
+        
+      } catch (error) {
+        console.error("Error loading data", error);
+        document.getElementById('recent-sessions').innerHTML = `<p style="color: #ef4444">Error loading data.</p>`;
+      }
+    }
+
+    function renderChart(labels, dataPoints) {
+      const ctx = document.getElementById('scoreChart').getContext('2d');
+      if (scoreChartInstance) scoreChartInstance.destroy();
+      
+      let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+      gradient.addColorStop(0, 'rgba(0, 217, 255, 0.5)');
+      gradient.addColorStop(1, 'rgba(0, 217, 255, 0)');
+
+      scoreChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Avg Score',
+            data: dataPoints,
+            borderColor: '#00D9FF',
+            backgroundColor: gradient,
+            borderWidth: 3,
+            pointBackgroundColor: '#111827',
+            pointBorderColor: '#00D9FF',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#111827',
+              titleColor: '#F9FAFB',
+              bodyColor: '#00D9FF',
+              borderColor: '#1F2937',
+              borderWidth: 1,
+              padding: 12,
+              displayColors: false
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false, drawBorder: false },
+              ticks: { color: '#9CA3AF', font: { family: 'Inter' } }
+            },
+            y: {
+              grid: { color: '#1F2937', drawBorder: false },
+              ticks: { color: '#9CA3AF', font: { family: 'Inter' } },
+              min: 0,
+              max: 10
+            }
+          },
+          interaction: { intersect: false, mode: 'index' },
+        }
+      });
+    }
+  </script>
+</body>
+</html>

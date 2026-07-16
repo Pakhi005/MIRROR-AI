@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mirror AI - Expert Sessions</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand" onclick="window.location.href='home.html'" style="cursor: pointer;">&larr; Back to Home</div>
+  </nav>
+
+  <div class="container">
+    <div class="header">
+      <h1>Book an Expert Session</h1>
+      <p style="color: var(--text-muted)">Get 1:1 mentorship and mock interviews from industry leaders</p>
+    </div>
+
+    <div class="grid-3">
+      <div class="card text-center">
+        <div class="avatar" style="width: 80px; height: 80px; border-radius: 50%; background: #4285F4; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white;">G</div>
+        <h3>Neha Sharma</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Software Engineer at Google</p>
+        <div style="color: #f59e0b; margin-bottom: 1rem;">★★★★★ (48 reviews)</div>
+        <span style="display: block; font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">Rs. 499 <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">/ 45 min</span></span>
+        <button class="btn" style="width: 100%;" onclick="bookSession()">Book Session</button>
+      </div>
+      
+      <div class="card text-center">
+        <div class="avatar" style="width: 80px; height: 80px; border-radius: 50%; background: #FF9900; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white;">A</div>
+        <h3>Vikram Singh</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">SDE II at Amazon</p>
+        <div style="color: #f59e0b; margin-bottom: 1rem;">★★★★☆ (32 reviews)</div>
+        <span style="display: block; font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">Rs. 399 <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">/ 45 min</span></span>
+        <button class="btn" style="width: 100%;" onclick="bookSession()">Book Session</button>
+      </div>
+
+      <div class="card text-center">
+        <div class="avatar" style="width: 80px; height: 80px; border-radius: 50%; background: #047BD5; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white;">F</div>
+        <h3>Rohan Das</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Product Manager at Flipkart</p>
+        <div style="color: #f59e0b; margin-bottom: 1rem;">★★★★★ (15 reviews)</div>
+        <span style="display: block; font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">Rs. 299 <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">/ 30 min</span></span>
+        <button class="btn" style="width: 100%;" onclick="bookSession()">Book Session</button>
+      </div>
+    </div>
+    
+    <div style="text-align: center; margin-top: 4rem; color: var(--text-muted); font-size: 0.9rem;">
+      <p>*Backend integration for payment and scheduling is in the roadmap post-hackathon.</p>
+    </div>
+  </div>
+
+  <script>
+    function bookSession() {
+      alert("Coming Soon! This feature will be integrated after the hackathon.");
+    }
+  </script>
+</body>
+</html>

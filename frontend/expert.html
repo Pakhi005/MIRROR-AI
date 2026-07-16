@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mirror AI - Expert Sessions</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    .hero-section {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    
+    .expert-grid {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: repeat(1, 1fr);
+    }
+    @media (min-width: 768px) {
+      .expert-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 1024px) {
+      .expert-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (min-width: 1280px) {
+      .expert-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .expert-card {
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .expert-photo {
+      height: 200px;
+      background: var(--bg-surface);
+      position: relative;
+      background-image: linear-gradient(to bottom, rgba(255,45,120,0.1), rgba(17,24,39,1));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      color: var(--accent-danger);
+    }
+
+    .verified-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(0, 255, 148, 0.1);
+      color: var(--accent-success);
+      border: 1px solid rgba(0, 255, 148, 0.2);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .expert-details {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex-grow: 1;
+    }
+
+    .expert-name {
+      font-size: 20px;
+      font-weight: 600;
+      color: white;
+    }
+    .expert-role {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+    .expert-company {
+      font-weight: 600;
+      color: white;
+    }
+
+    .expert-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+    }
+    .rating {
+      color: #FFD60A;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .specializes {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .tag {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .expert-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .expert-price {
+      font-size: 18px;
+      font-weight: 600;
+      color: white;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Modal trigger logic via CSS for simple demo */
+    .btn-book {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+    
+  </style>
+</head>
+<body>
+
+  <div class="container page-load">
+    <nav class="navbar" style="margin-bottom: 24px; padding: 12px 0;">
+      <a href="home.html" class="nav-brand" style="font-size: 20px;">
+        <i class="ti ti-arrow-left"></i> 🪞 Mirror AI
+      </a>
+      <div class="nav-actions">
+        <a href="dashboard.html" class="text-secondary hover:text-white" style="text-decoration: none;">
+          <i class="ti ti-layout-dashboard" style="font-size: 24px;"></i>
+        </a>
+        <div class="avatar">
+          JS
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <div class="hero-section">
+        <h1 class="space-grotesk" style="font-size: 36px; margin-bottom: 12px;">Learn from people who've been there</h1>
+        <p class="text-secondary" style="font-size: 18px;">Industry professionals from top companies</p>
+      </div>
+
+      <div class="expert-grid">
+        <!-- Expert 1 -->
+        <div class="card interactive expert-card">
+          <div class="expert-photo">
+            <i class="ti ti-user-circle"></i>
+            <div class="verified-badge"><i class="ti ti-check"></i> Verified</div>
+          </div>
+          <div class="expert-details">
+            <div>
+              <div class="expert-name space-grotesk">Arjun Mehta</div>
+              <div class="expert-role">Senior SDE @ <span class="expert-company">Google</span></div>
+            </div>
+            
+            <div class="expert-stats">
+              <div class="rating"><i class="ti ti-star-filled"></i> 4.9</div>
+              <div class="text-muted">•</div>
+              <div class="text-secondary">127 sessions</div>
+            </div>
+
+            <div>
+              <div class="specializes">Specializes in:</div>
+              <div class="tag-container">
+                <span class="tag">DSA</span>
+                <span class="tag">System Des</span>
+              </div>
+            </div>
+
+            <div class="expert-footer">
+              <div class="expert-price text-danger">₹ 299<span style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span></div>
+              <button class="btn btn-danger btn-book" onclick="showModal()">Book</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expert 2 -->
+        <div class="card interactive expert-card">
+          <div class="expert-photo" style="color: var(--accent-secondary); background-image: linear-gradient(to bottom, rgba(123,47,255,0.1), rgba(17,24,39,1));">
+            <i class="ti ti-user-circle"></i>
+            <div class="verified-badge"><i class="ti ti-check"></i> Verified</div>
+          </div>
+          <div class="expert-details">
+            <div>
+              <div class="expert-name space-grotesk">Sneha Rao</div>
+              <div class="expert-role">Product Manager @ <span class="expert-company">Uber</span></div>
+            </div>
+            
+            <div class="expert-stats">
+              <div class="rating"><i class="ti ti-star-filled"></i> 5.0</div>
+              <div class="text-muted">•</div>
+              <div class="text-secondary">84 sessions</div>
+            </div>
+
+            <div>
+              <div class="specializes">Specializes in:</div>
+              <div class="tag-container">
+                <span class="tag">Product Design</span>
+                <span class="tag">Strategy</span>
+              </div>
+            </div>
+
+            <div class="expert-footer">
+              <div class="expert-price text-danger">₹ 399<span style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span></div>
+              <button class="btn btn-danger btn-book" onclick="showModal()">Book</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expert 3 -->
+        <div class="card interactive expert-card">
+          <div class="expert-photo" style="color: var(--accent-primary); background-image: linear-gradient(to bottom, rgba(0,217,255,0.1), rgba(17,24,39,1));">
+            <i class="ti ti-user-circle"></i>
+            <div class="verified-badge"><i class="ti ti-check"></i> Verified</div>
+          </div>
+          <div class="expert-details">
+            <div>
+              <div class="expert-name space-grotesk">Karan Singh</div>
+              <div class="expert-role">Data Scientist @ <span class="expert-company">Amazon</span></div>
+            </div>
+            
+            <div class="expert-stats">
+              <div class="rating"><i class="ti ti-star-filled"></i> 4.8</div>
+              <div class="text-muted">•</div>
+              <div class="text-secondary">215 sessions</div>
+            </div>
+
+            <div>
+              <div class="specializes">Specializes in:</div>
+              <div class="tag-container">
+                <span class="tag">Machine Learning</span>
+                <span class="tag">SQL</span>
+              </div>
+            </div>
+
+            <div class="expert-footer">
+              <div class="expert-price text-danger">₹ 249<span style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span></div>
+              <button class="btn btn-danger btn-book" onclick="showModal()">Book</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Coming Soon Modal -->
+    <div class="modal-overlay" id="comingSoonModal" style="display: none;">
+      <div class="modal-content" style="text-align: center;">
+        <div style="font-size: 48px; margin-bottom: 16px;">🚀</div>
+        <h3 class="space-grotesk" style="font-size: 24px; margin-bottom: 16px;">Coming Soon!</h3>
+        <p class="text-secondary mb-6">Expert sessions are launching next week. Stay tuned!</p>
+        <button class="btn btn-primary" style="width: 100%;" onclick="hideModal()">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mobile-nav">
+    <a href="home.html"><i class="ti ti-home" style="font-size: 24px;"></i> Home</a>
+    <a href="mock.html"><i class="ti ti-robot" style="font-size: 24px;"></i> AI Mock</a>
+    <a href="peer.html"><i class="ti ti-users" style="font-size: 24px;"></i> Peer</a>
+    <a href="dashboard.html"><i class="ti ti-layout-dashboard" style="font-size: 24px;"></i> Dash</a>
+  </div>
+
+  <script>
+    function showModal() {
+      document.getElementById('comingSoonModal').style.display = 'flex';
+    }
+    function hideModal() {
+      document.getElementById('comingSoonModal').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mirror AI - Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand" onclick="window.location.href='home.html'" style="cursor: pointer;">&larr; Back to Home</div>
+  </nav>
+
+  <div class="container">
+    <div class="header" style="text-align: left;">
+      <h1>Your Progress Dashboard</h1>
+      <p style="color: var(--text-muted)">Track your interview scores and identify weak areas</p>
+    </div>
+
+    <div class="grid-3" style="margin-bottom: 2rem;">
+      <div class="card text-center">
+        <h3 style="color: var(--text-muted); margin-top: 0;">Total Interviews</h3>
+        <div id="total-interviews" style="font-size: 3rem; font-weight: bold;">...</div>
+      </div>
+      <div class="card text-center">
+        <h3 style="color: var(--text-muted); margin-top: 0;">Average Score</h3>
+        <div id="avg-score" style="font-size: 3rem; font-weight: bold; color: #10b981;">...<span style="font-size: 1.5rem; color: var(--text-muted);">/10</span></div>
+      </div>
+      <div class="card">
+        <h3 style="color: var(--text-muted); margin-top: 0; text-align: center;">Top Weak Areas</h3>
+        <ul id="weak-areas" style="margin: 0; padding-left: 1.5rem; color: #f87171;">
+          <li>Loading...</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 2rem;">
+      <h3 style="margin-top: 0;">Score History</h3>
+      <div style="height: 300px; width: 100%;">
+        <canvas id="scoreChart"></canvas>
+      </div>
+    </div>
+    
+    <h3>Recent Sessions</h3>
+    <div id="recent-sessions">
+      <p style="color: var(--text-muted)">Loading recent sessions...</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db, collection, query, where, getDocs, orderBy, onAuthStateChanged } from './firebase-config.js';
+
+    let scoreChartInstance = null;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        await loadDashboardData(user.uid);
+      } else {
+        window.location.href = 'index.html'; // Redirect to login if not authenticated
+      }
+    });
+
+    async function loadDashboardData(uid) {
+      try {
+        const q = query(
+          collection(db, 'interviews'),
+          where('userId', '==', uid)
+        ); // Note: orderBy requires a composite index, omitting to avoid needing console setup right away
+        
+        const querySnapshot = await getDocs(q);
+        const interviews = [];
+        querySnapshot.forEach((doc) => {
+          interviews.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Sort manually by date desc
+        interviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        // Calculate Stats
+        const total = interviews.length;
+        document.getElementById('total-interviews').innerText = total;
+        
+        if (total === 0) {
+          document.getElementById('avg-score').innerHTML = `0<span style="font-size: 1.5rem; color: var(--text-muted);">/10</span>`;
+          document.getElementById('weak-areas').innerHTML = `<li>No data yet</li>`;
+          document.getElementById('recent-sessions').innerHTML = `<p style="color: var(--text-muted)">No sessions found. Do a mock interview!</p>`;
+          renderChart([], []);
+          return;
+        }
+
+        let totalScore = 0;
+        const labels = [];
+        const dataPoints = [];
+        let sessionsHtml = '';
+        const weakAreasSet = new Set();
+        
+        // Build reverse arrays for chart (oldest first)
+        const chartInterviews = [...interviews].reverse();
+        
+        chartInterviews.forEach((inv, index) => {
+          labels.push(`Session ${index + 1}`);
+          dataPoints.push(inv.overall_score || 0);
+        });
+
+        interviews.forEach(inv => {
+          totalScore += inv.overall_score || 0;
+          if (inv.weakest_area) weakAreasSet.add(inv.weakest_area);
+          
+          const d = new Date(inv.date);
+          const dateStr = d.toLocaleDateString();
+          
+          sessionsHtml += `
+            <div class="card" style="margin-bottom: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <h4 style="margin: 0 0 0.5rem 0;">${inv.role || 'Interview'}</h4>
+                  <span style="color: var(--text-muted); font-size: 0.9rem;">${dateStr}</span>
+                </div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #10b981;">${inv.overall_score}/10</div>
+              </div>
+            </div>
+          `;
+        });
+        
+        const avg = (totalScore / total).toFixed(1);
+        document.getElementById('avg-score').innerHTML = `${avg}<span style="font-size: 1.5rem; color: var(--text-muted);">/10</span>`;
+        document.getElementById('recent-sessions').innerHTML = sessionsHtml;
+        
+        const weakAreasHtml = Array.from(weakAreasSet).slice(0, 3).map(wa => `<li>${wa}</li>`).join('');
+        document.getElementById('weak-areas').innerHTML = weakAreasHtml || `<li>None recorded</li>`;
+        
+        renderChart(labels, dataPoints);
+        
+      } catch (error) {
+        console.error("Error loading data", error);
+        document.getElementById('recent-sessions').innerHTML = `<p style="color: #ef4444">Error loading data.</p>`;
+      }
+    }
+
+    function renderChart(labels, dataPoints) {
+      const ctx = document.getElementById('scoreChart').getContext('2d');
+      if (scoreChartInstance) scoreChartInstance.destroy();
+      
+      scoreChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Overall Score (Out of 10)',
+            data: dataPoints,
+            borderColor: '#7c3aed',
+            backgroundColor: 'rgba(124, 58, 237, 0.1)',
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { min: 0, max: 10, grid: { color: '#333' } },
+            x: { grid: { color: '#333' } }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
