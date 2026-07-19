@@ -552,24 +552,30 @@
             body: formData
           });
           const data = await response.json();
+          console.log('Final report from backend:', data);
           
           if(currentUser) {
-            await addDoc(collection(db, 'interviews'), {
+            const docData = {
               userId: currentUser.uid,
               role: jd.substring(0, 30) + '...', 
               date: new Date().toISOString(),
-              overall_score: data.overall_score,
-              strongest_answer: data.strongest_answer,
-              weakest_area: data.weakest_area,
-              tips: data.tips
-            });
+              overall_score: data.overall_score || 0,
+              strongest_answer: data.strongest_answer || 'N/A',
+              weakest_area: data.weakest_area || 'N/A',
+              tips: data.tips || []
+            };
+            console.log('Saving to Firestore:', docData);
+            const docRef = await addDoc(collection(db, 'interviews'), docData);
+            console.log('Saved with doc ID:', docRef.id);
+          } else {
+            console.warn('No currentUser — cannot save to Firestore');
           }
           
           alert("Interview Complete! Final report saved. Redirecting to Dashboard.");
           window.location.href = 'dashboard.html';
         } catch (error) {
           console.error("Error saving final report:", error);
-          alert("Error saving report.");
+          alert("Error saving report: " + error.message);
         }
     }
 

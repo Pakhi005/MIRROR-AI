@@ -282,6 +282,7 @@
     });
 
     async function loadDashboardData(uid) {
+      console.log('Loading dashboard for UID:', uid);
       try {
         const q = query(
           collection(db, 'interviews'),
@@ -289,9 +290,12 @@
         ); 
         
         const querySnapshot = await getDocs(q);
+        console.log('Firestore returned', querySnapshot.size, 'documents');
         const interviews = [];
         querySnapshot.forEach((doc) => {
-          interviews.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          console.log('Interview doc:', doc.id, data);
+          interviews.push({ id: doc.id, ...data });
         });
         
         interviews.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -301,7 +305,7 @@
         
         if (total === 0) {
           document.getElementById('avg-score').innerHTML = `0<span style="font-size: 18px; color: var(--text-muted);">/10</span>`;
-          document.getElementById('weak-areas').innerHTML = `<div class="text-secondary">No data yet</div>`;
+          document.getElementById('weak-areas').innerHTML = `<div class="text-secondary">No data yet. Complete an interview first!</div>`;
           document.getElementById('recent-sessions').innerHTML = `<p style="color: var(--text-muted)">No sessions found. Do a mock interview!</p>`;
           renderChart([], []);
           return;
@@ -380,8 +384,14 @@
         renderChart(labels, dataPoints);
         
       } catch (error) {
-        console.error("Error loading data", error);
-        document.getElementById('recent-sessions').innerHTML = `<p style="color: #ef4444">Error loading data.</p>`;
+        console.error("Error loading data:", error);
+        // If it's a missing index error, Firestore provides a direct link to create it
+        const errMsg = error.message || String(error);
+        if (errMsg.includes('index')) {
+          document.getElementById('recent-sessions').innerHTML = `<p style="color: var(--error)">Firestore needs an index. Check browser console for the creation link.</p>`;
+        } else {
+          document.getElementById('recent-sessions').innerHTML = `<p style="color: var(--error)">Error: ${errMsg}</p>`;
+        }
       }
     }
 
