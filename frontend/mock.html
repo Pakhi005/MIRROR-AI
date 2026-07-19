@@ -348,6 +348,30 @@
     let audioChunks = [];
     let currentAudioBlob = null;
     
+    // Live speech recognition for real-time transcript display
+    let recognition = null;
+    let liveTranscript = '';
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SR();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-IN';
+      recognition.onresult = (event) => {
+        let interim = '';
+        let final = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) final += event.results[i][0].transcript;
+          else interim += event.results[i][0].transcript;
+        }
+        liveTranscript += final;
+        const ansDiv = document.getElementById('user-answer');
+        ansDiv.innerText = (liveTranscript + interim) || '(Listening...)';
+        ansDiv.style.color = 'var(--text-primary)';
+        ansDiv.style.fontStyle = 'normal';
+      };
+    }
+
     // Request Audio Permissions upfront or initialize
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
@@ -363,10 +387,12 @@
           mediaRecorder.onstop = () => {
             currentAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
             audioChunks = [];
+            // If we got a live transcript, keep it displayed; otherwise show placeholder
             const ansDiv = document.getElementById('user-answer');
-            ansDiv.innerText = "(Audio recorded. Ready to submit.)";
-            ansDiv.style.color = 'white';
-            ansDiv.style.fontStyle = 'normal';
+            if (!liveTranscript.trim()) {
+              ansDiv.innerText = "(Audio recorded — transcript will appear after submit)";
+              ansDiv.style.color = 'var(--text-muted)';
+            }
           };
         })
         .catch(err => {
@@ -431,17 +457,20 @@
         btn.classList.add('btn-secondary');
         statusText.innerText = "Listening...";
         waveform.style.opacity = "1";
-        document.getElementById('user-answer').innerText = "(Recording audio...)";
+        liveTranscript = ''; // Reset live transcript for new recording
+        document.getElementById('user-answer').innerText = "(Listening... speak now)";
         document.getElementById('user-answer').style.color = 'var(--text-muted)';
         document.getElementById('user-answer').style.fontStyle = 'italic';
         audioChunks = [];
         mediaRecorder.start();
+        if (recognition) recognition.start(); // Start live transcript
       } else {
         btn.innerText = "🎤 Start Recording";
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-danger');
         statusText.innerText = "Waiting...";
         waveform.style.opacity = "0.3";
+        if (recognition) recognition.stop(); // Stop live transcript
         mediaRecorder.stop();
       }
     }
@@ -547,11 +576,13 @@
     async function endInterviewEarly() {
       if(!confirm("Are you sure you want to end the interview early?")) return;
       
-      document.getElementById('end-early-btn').innerText = "Generating report...";
-      document.getElementById('end-early-btn').disabled = true;
+      const btn = document.getElementById('end-early-btn');
+      btn.innerText = "Generating report...";
+      btn.disabled = true;
       document.getElementById('ai-question').innerText = "Generating final report... please wait.";
       
-      await finishInterviewProcess();
+      // Use setTimeout to release the UI thread before the heavy async call (fixes INP)
+      setTimeout(() => finishInterviewProcess(), 50);
     }
 
     async function nextQuestion() {
