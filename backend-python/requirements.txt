@@ -1,0 +1,10 @@
+Flask
+flask-cors
+python-dotenv
+google-genai
+langchain
+langgraph
+langchain-google-genai
+openai
+boto3
+Werkzeug
