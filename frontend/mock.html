@@ -397,7 +397,7 @@
       document.getElementById('ai-question').innerText = "Loading first question...";
       
       try {
-        const response = await fetch('http://localhost:5000/start-interview', {
+        const response = await fetch('https://3.87.145.119.nip.io/start-interview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ jd: jd, email: email })
@@ -477,7 +477,7 @@
         // Send history WITHOUT the current answer — it's sent as audio above
         formData.append("history", JSON.stringify(conversationHistory));
         
-        const response = await fetch('http://localhost:5000/submit-answer', {
+        const response = await fetch('https://3.87.145.119.nip.io/submit-answer', {
           method: 'POST',
           body: formData
         });
@@ -518,7 +518,7 @@
           formData.append("question_number", 13);
           formData.append("history", JSON.stringify(conversationHistory));
           
-          const response = await fetch('http://localhost:5000/end-interview', {
+          const response = await fetch('https://3.87.145.119.nip.io/end-interview', {
             method: 'POST',
             body: formData
           });
