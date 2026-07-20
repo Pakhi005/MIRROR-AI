@@ -450,7 +450,7 @@
 
       peerConnection.oniceconnectionstatechange = () => {
         logDebug(`ICE State: ${peerConnection.iceConnectionState}`);
-        if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
+        if (peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
           window.endCall();
         }
       };
