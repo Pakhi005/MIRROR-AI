@@ -292,6 +292,8 @@
 
       console.log('[PEER] Initializing lobby...');
 
+      const el = document.getElementById('conn-status');
+
       // Write ourselves into the lobby
       const myRef = doc(db, 'peer-lobby', mySessionId);
       console.log('[PEER] Writing self to lobby with sessionId:', mySessionId);
