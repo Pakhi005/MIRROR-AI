@@ -7,7 +7,6 @@
   <title>Mirror AI - Peer Connect</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/@daily-co/daily-js"></script>
   <style>
     .top-bar {
@@ -205,24 +204,16 @@
 
   <script type="module">
     import { auth, db, onAuthStateChanged } from './firebase-config.js';
-    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-    // 🔴 IMPORTANT: REPLACE THESE WITH YOUR SUPABASE CREDENTIALS 🔴
-    const SUPABASE_URL = "https://tuexeruyxwywpuomkpui.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_lmrZTlw-xknTBkB6xkCi7g_CxV2FG2Y";
-
-
-
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    let channel;
+    import {
+      doc, getDoc, setDoc, deleteDoc, collection,
+      onSnapshot, query, where, serverTimestamp, addDoc, getDocs
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     let myName = "Guest " + Math.floor(Math.random() * 1000);
     let myDomain = "Software Engineering";
     let myYear = "Demo User";
     function uuidv4() {
-      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID();
-      }
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
@@ -235,110 +226,127 @@
     let pendingRequestSessionId = null;
     let peerNameFromReq = "Peer";
     let targetPeerName = "Peer";
+    let lobbyUnsubscribe = null;
+    let signalUnsubscribe = null;
+
+    // In-memory map of online users
+    const onlineUsers = {};
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
-        myUuid = user.uid; // use firebase uid for consistency
+        myUuid = user.uid;
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           myName = userDoc.data().name || user.email.split('@')[0];
+          myDomain = userDoc.data().domain || myDomain;
+          myYear = userDoc.data().year || myYear;
         } else {
           myName = user.email.split('@')[0];
         }
       }
-      initSupabasePresence();
+      initLobby();
     });
 
-    // Fallback if auth is slow or anonymous
-    setTimeout(() => {
-      if (!channel) initSupabasePresence();
-    }, 2000);
+    // Fallback if auth is slow
+    setTimeout(() => { if (!lobbyUnsubscribe) initLobby(); }, 2500);
 
-    function initSupabasePresence() {
-      if (channel) return; // already initialized
+    async function initLobby() {
+      if (lobbyUnsubscribe) return;
 
-      // Use broadcast-only channel (no presence needed — more reliable)
-      channel = supabaseClient.channel('mirror-ai-peer-room-v2');
+      const el = document.getElementById('conn-status');
 
-      channel
-        .on('broadcast', { event: 'heartbeat' }, (payload) => {
-          const p = payload.payload;
-          if (p.sessionId && p.sessionId !== mySessionId) {
-            onlineUsers[p.sessionId] = { ...p, lastSeen: Date.now() };
-            renderOnlineUsers(Object.values(onlineUsers));
-          }
-        })
-        .on('broadcast', { event: 'bye' }, (payload) => {
-          const p = payload.payload;
-          if (p.sessionId && onlineUsers[p.sessionId]) {
-            delete onlineUsers[p.sessionId];
-            renderOnlineUsers(Object.values(onlineUsers));
-          }
-        })
-        .on('broadcast', { event: 'connect-request' }, (payload) => {
-          if (payload.payload.targetSessionId === mySessionId) {
-            pendingRequestSessionId = payload.payload.fromSessionId;
-            peerNameFromReq = payload.payload.fromName;
-            document.getElementById('request-text').innerText = `${payload.payload.fromName} wants to connect!`;
-            document.getElementById('request-overlay').style.display = 'flex';
-          }
-        })
-        .on('broadcast', { event: 'connect-declined' }, (payload) => {
-          if (payload.payload.targetSessionId === mySessionId) alert("Your request was declined.");
-        })
-        .on('broadcast', { event: 'connect-accepted' }, (payload) => {
-          if (payload.payload.targetSessionId === mySessionId) handleRequestAccepted(payload.payload.fromSessionId);
-        })
-        .on('broadcast', { event: 'call-ended' }, (payload) => {
-          if (payload.payload.targetSessionId === mySessionId) window.endCall(false);
-        })
-        .subscribe((status) => {
-          const el = document.getElementById('conn-status');
-          if (status === 'SUBSCRIBED') {
-            if (el) { el.style.color = '#4ade80'; el.style.borderColor = 'rgba(74,222,128,0.3)'; el.style.background = 'rgba(74,222,128,0.1)'; el.innerText = '✅ Connected'; }
-            // Start sending heartbeat immediately, then every 5s
-            sendHeartbeat();
-            setInterval(sendHeartbeat, 5000);
-            // Clean up stale users every 6s
-            setInterval(() => {
-              const now = Date.now();
-              let changed = false;
-              for (const sid in onlineUsers) {
-                if (now - onlineUsers[sid].lastSeen > 12000) {
-                  delete onlineUsers[sid];
-                  changed = true;
-                }
-              }
-              if (changed) renderOnlineUsers(Object.values(onlineUsers));
-            }, 6000);
-          } else if (el) {
-            el.innerText = '❌ Status: ' + status;
+      // Write ourselves into the lobby
+      const myRef = doc(db, 'peer-lobby', mySessionId);
+      await setDoc(myRef, {
+        sessionId: mySessionId,
+        userId: myUuid,
+        name: myName,
+        domain: myDomain,
+        year: myYear,
+        ts: serverTimestamp()
+      });
+
+      // Update heartbeat every 10s
+      const heartbeatInterval = setInterval(async () => {
+        try {
+          await setDoc(myRef, { ts: serverTimestamp() }, { merge: true });
+        } catch(e) {}
+      }, 10000);
+
+      // Clean up stale entries (older than 30s) every 15s
+      setInterval(async () => {
+        const cutoff = Date.now() - 30000;
+        const snapshot = await getDocs(collection(db, 'peer-lobby'));
+        snapshot.forEach(async (d) => {
+          const data = d.data();
+          if (data.ts && data.ts.toMillis && data.ts.toMillis() < cutoff && d.id !== mySessionId) {
+            await deleteDoc(d.ref);
           }
         });
+      }, 15000);
 
-      // Broadcast 'bye' when tab closes
-      window.addEventListener('beforeunload', () => {
-        channel.send({ type: 'broadcast', event: 'bye', payload: { sessionId: mySessionId } });
-      });
-    }
-
-    function sendHeartbeat() {
-      if (!channel) return;
-      channel.send({
-        type: 'broadcast',
-        event: 'heartbeat',
-        payload: {
-          sessionId: mySessionId,
-          userId: myUuid,
-          name: myName,
-          domain: myDomain,
-          year: myYear
+      // Listen to lobby in real-time
+      lobbyUnsubscribe = onSnapshot(collection(db, 'peer-lobby'), (snapshot) => {
+        if (el) { el.style.color = '#4ade80'; el.style.borderColor = 'rgba(74,222,128,0.3)'; el.style.background = 'rgba(74,222,128,0.1)'; el.innerText = '✅ Connected'; }
+        snapshot.forEach(d => {
+          const data = d.data();
+          if (data.sessionId && data.sessionId !== mySessionId) {
+            onlineUsers[data.sessionId] = data;
+          }
+        });
+        // Remove users no longer in snapshot
+        const currentIds = new Set();
+        snapshot.forEach(d => currentIds.add(d.id));
+        for (const sid in onlineUsers) {
+          if (!currentIds.has(sid)) delete onlineUsers[sid];
         }
+        renderOnlineUsers(Object.values(onlineUsers));
+      }, (err) => {
+        if (el) { el.innerText = '❌ ' + err.message; }
+        console.error(err);
+      });
+
+      // Listen for signals addressed to us
+      signalUnsubscribe = onSnapshot(
+        query(collection(db, 'peer-signals'), where('targetSessionId', '==', mySessionId)),
+        (snapshot) => {
+          snapshot.docChanges().forEach(async (change) => {
+            if (change.type !== 'added') return;
+            const sig = change.doc.data();
+            await deleteDoc(change.doc.ref); // consume signal
+            if (sig.event === 'connect-request') {
+              pendingRequestSessionId = sig.fromSessionId;
+              peerNameFromReq = sig.fromName;
+              document.getElementById('request-text').innerText = `${sig.fromName} wants to connect!`;
+              document.getElementById('request-overlay').style.display = 'flex';
+            } else if (sig.event === 'connect-declined') {
+              alert("Your request was declined.");
+            } else if (sig.event === 'connect-accepted') {
+              handleRequestAccepted(sig.fromSessionId);
+            } else if (sig.event === 'call-ended') {
+              window.endCall(false);
+            }
+          });
+        }
+      );
+
+      // Remove ourselves from lobby on tab close
+      window.addEventListener('beforeunload', () => {
+        deleteDoc(myRef);
+        clearInterval(heartbeatInterval);
       });
     }
 
-    // In-memory map of online users: sessionId -> userInfo
-    const onlineUsers = {};
+    async function sendSignal(event, targetSessionId, extra = {}) {
+      await addDoc(collection(db, 'peer-signals'), {
+        event,
+        targetSessionId,
+        fromSessionId: mySessionId,
+        fromName: myName,
+        ...extra,
+        ts: serverTimestamp()
+      });
+    }
 
     function renderOnlineUsers(users) {
       document.getElementById('online-count').innerText = users.length;
@@ -346,7 +354,7 @@
       grid.innerHTML = '';
 
       users.forEach((user, index) => {
-        const initials = user.name.substring(0, 2).toUpperCase();
+        const initials = (user.name || '??').substring(0, 2).toUpperCase();
         const colors = ['var(--accent-primary)', 'var(--accent-secondary)', 'var(--accent-danger)'];
         const badgeColors = ['badge-primary', 'badge-secondary', 'badge-danger'];
         const cIndex = index % colors.length;
@@ -364,12 +372,12 @@
           </div>
           <div>
             <div class="user-name space-grotesk">${user.name}</div>
-            <div class="user-degree">${user.year}</div>
+            <div class="user-degree">${user.year || ''}</div>
           </div>
           <div>
-            <span class="badge ${badgeColors[cIndex]}">${user.domain}</span>
+            <span class="badge ${badgeColors[cIndex]}">${user.domain || 'General'}</span>
           </div>
-          <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="connectPeer('${user.sessionId}', '${user.name.replace(/'/g, "\\'")}')">
+          <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="connectPeer('${user.sessionId}', '${(user.name || '').replace(/'/g, "\\'")}')">
             Connect <i class="ti ti-arrow-right"></i>
           </button>
         `;
@@ -380,25 +388,12 @@
     window.connectPeer = function (targetSessionId, peerName) {
       targetPeerName = peerName;
       alert("Request sent to " + peerName + "! Waiting for response...");
-      channel.send({
-        type: 'broadcast',
-        event: 'connect-request',
-        payload: {
-          targetSessionId,
-          fromSessionId: mySessionId,
-          fromName: myName,
-          fromDomain: myDomain
-        }
-      });
+      sendSignal('connect-request', targetSessionId, { fromDomain: myDomain });
     }
 
     window.declineRequest = function () {
       if (pendingRequestSessionId) {
-        channel.send({
-          type: 'broadcast',
-          event: 'connect-declined',
-          payload: { targetSessionId: pendingRequestSessionId }
-        });
+        sendSignal('connect-declined', pendingRequestSessionId);
       }
       pendingRequestSessionId = null;
       document.getElementById('request-overlay').style.display = 'none';
@@ -471,15 +466,7 @@
       currentPeerSessionId = pendingRequestSessionId;
       document.getElementById('peer-name').innerText = peerNameFromReq;
 
-      channel.send({
-        type: 'broadcast',
-        event: 'connect-accepted',
-        payload: {
-          targetSessionId: currentPeerSessionId,
-          fromSessionId: mySessionId
-        }
-      });
-      
+      await sendSignal('connect-accepted', currentPeerSessionId);
       startDailyCall(currentPeerSessionId);
     }
 
@@ -494,11 +481,7 @@
 
     window.endCall = async function (notify = true) {
       if (notify && currentPeerSessionId) {
-        channel.send({
-          type: 'broadcast',
-          event: 'call-ended',
-          payload: { targetSessionId: currentPeerSessionId }
-        });
+        await sendSignal('call-ended', currentPeerSessionId);
       }
       if (dailyCallFrame) {
         dailyCallFrame.destroy();
@@ -510,22 +493,6 @@
       clearInterval(timerInterval);
       document.getElementById('call-timer').innerText = "30:00";
       currentPeerSessionId = null;
-    }
-
-    function startTimer() {
-      let timeLeft = 30 * 60;
-      const timerEl = document.getElementById('call-timer');
-      timerEl.innerText = "30:00";
-      clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        timeLeft--;
-        const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
-        const s = (timeLeft % 60).toString().padStart(2, '0');
-        timerEl.innerText = `${m}:${s}`;
-        if (timeLeft <= 0) {
-          window.endCall();
-        }
-      }, 1000);
     }
   </script>
 </body>
