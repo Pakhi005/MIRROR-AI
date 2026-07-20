@@ -7,7 +7,6 @@
   <title>Mirror AI - Peer Connect</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-  <script src="https://unpkg.com/@daily-co/daily-js"></script>
   <style>
     .top-bar {
       display: flex;
@@ -114,6 +113,42 @@
     .user-degree {
       color: var(--text-secondary);
       font-size: 14px;
+    }
+
+    .video-shell {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .video-card {
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #000;
+      min-height: 220px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    .video-card video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+
+    .video-label {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.65);
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
     }
   </style>
 </head>
@@ -326,6 +361,12 @@
               alert("Your request was declined.");
             } else if (sig.event === 'connect-accepted') {
               handleRequestAccepted(sig.fromSessionId, sig.roomName || null);
+            } else if (sig.event === 'webrtc-offer') {
+              await handleIncomingOffer(sig.fromSessionId, sig.sdp);
+            } else if (sig.event === 'webrtc-answer') {
+              await handleIncomingAnswer(sig.sdp);
+            } else if (sig.event === 'webrtc-ice-candidate') {
+              await handleIncomingIceCandidate(sig.candidate);
             } else if (sig.event === 'call-ended') {
               window.endCall(false);
             }
@@ -415,13 +456,15 @@
       document.getElementById('request-overlay').style.display = 'none';
     }
 
-    // --- Daily.co Call Logic ---
+    // --- WebRTC Call Logic ---
     let currentPeerSessionId = null;
     let timerInterval;
-    let dailyCallFrame = null;
-
-    // ✅ Daily.co Room URL
-    const DAILY_ROOM_URL = 'https://peertopeer.daily.co/JO66MYdmRPyGYqLIE5wG';
+    let peerConnection = null;
+    let localStream = null;
+    let remoteStream = null;
+    let localVideoEl = null;
+    let remoteVideoEl = null;
+    let isInitiator = false;
 
     function startTimer() {
       let timeLeft = SESSION_DURATION_MINUTES * 60;
@@ -440,47 +483,127 @@
       }, 1000);
     }
 
-    function startDailyCall(roomNameOrUrl) {
-      const roomUrl = typeof roomNameOrUrl === 'string' && roomNameOrUrl.includes('http')
-        ? roomNameOrUrl
-        : getDailyRoomUrl(roomNameOrUrl || 'mirror-peer-session');
-
-      document.getElementById('main-content').style.display = 'none';
-      document.getElementById('video-container').style.display = 'flex';
-
+    function setupVideoLayout() {
       const container = document.getElementById('daily-container');
       container.innerHTML = '';
+      container.className = 'video-shell';
 
-      dailyCallFrame = window.DailyIframe.createFrame(container, {
-        iframeStyle: {
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          border: 'none',
-          borderRadius: '16px'
-        },
-        showLeaveButton: true,
-        showFullscreenButton: true,
+      const localCard = document.createElement('div');
+      localCard.className = 'video-card';
+      localCard.innerHTML = '<video id="local-video" autoplay muted playsinline></video><div class="video-label">You</div>';
+      container.appendChild(localCard);
+
+      const remoteCard = document.createElement('div');
+      remoteCard.className = 'video-card';
+      remoteCard.innerHTML = '<video id="remote-video" autoplay playsinline></video><div class="video-label">Peer</div>';
+      container.appendChild(remoteCard);
+
+      localVideoEl = document.getElementById('local-video');
+      remoteVideoEl = document.getElementById('remote-video');
+    }
+
+    function createPeerConnection() {
+      if (peerConnection) return peerConnection;
+
+      peerConnection = new RTCPeerConnection({
+        iceServers: [
+          { urls: ['stun:stun.l.google.com:19302'] },
+          { urls: ['stun:stun1.l.google.com:19302'] },
+          { urls: ['stun:stun2.l.google.com:19302'] },
+          { urls: ['stun:stun3.l.google.com:19302'] },
+          { urls: ['stun:stun4.l.google.com:19302'] }
+        ],
+        iceCandidatePoolSize: 0
       });
 
-      dailyCallFrame
-        .join({ url: roomUrl, userName: myName })
-        .catch(err => {
-          console.error('Daily.co join error:', err);
-          alert('Could not join the call: ' + err.message);
-          window.endCall(false);
-        });
+      peerConnection.ontrack = (event) => {
+        remoteStream = event.streams[0];
+        if (remoteVideoEl) {
+          remoteVideoEl.srcObject = remoteStream;
+          remoteVideoEl.play().catch(() => {});
+        }
+      };
 
-      dailyCallFrame.on('left-meeting', () => window.endCall(true));
-      dailyCallFrame.on('error', (e) => {
-        console.error('Daily.co error:', e);
-        alert('Call error: ' + (e.errorMsg || JSON.stringify(e)));
-        window.endCall(false);
-      });
+      peerConnection.onicecandidate = async (event) => {
+        if (event.candidate && currentPeerSessionId) {
+          await sendSignal('webrtc-ice-candidate', currentPeerSessionId, {
+            candidate: event.candidate
+          });
+        }
+      };
 
+      return peerConnection;
+    }
+
+    async function ensureLocalMedia() {
+      if (localStream) return localStream;
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (localVideoEl) {
+          localVideoEl.srcObject = localStream;
+          await localVideoEl.play().catch(() => {});
+        }
+      } catch (err) {
+        console.error('Camera/mic access failed:', err);
+        alert('Camera and microphone access are required for the peer call.');
+        throw err;
+      }
+
+      return localStream;
+    }
+
+    async function attachLocalStreamToPeer() {
+      const stream = await ensureLocalMedia();
+      const pc = createPeerConnection();
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      return pc;
+    }
+
+    async function startWebRTCCall(peerSessionId, initiator = false) {
+      currentPeerSessionId = peerSessionId;
+      document.getElementById('main-content').style.display = 'none';
+      document.getElementById('video-container').style.display = 'flex';
+      setupVideoLayout();
+      isInitiator = initiator;
+
+      await attachLocalStreamToPeer();
       startTimer();
+
+      if (initiator) {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        await sendSignal('webrtc-offer', peerSessionId, { sdp: offer });
+      }
+    }
+
+    async function handleIncomingOffer(fromSessionId, sdp) {
+      currentPeerSessionId = fromSessionId;
+      document.getElementById('peer-name').innerText = targetPeerName;
+      await startWebRTCCall(fromSessionId, false);
+
+      if (peerConnection && sdp) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        await sendSignal('webrtc-answer', fromSessionId, { sdp: answer });
+      }
+    }
+
+    async function handleIncomingAnswer(sdp) {
+      if (peerConnection && sdp) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+      }
+    }
+
+    async function handleIncomingIceCandidate(candidate) {
+      if (peerConnection && candidate) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.warn('ICE candidate ignored:', err);
+        }
+      }
     }
 
     // Callee accepts
@@ -491,7 +614,7 @@
 
       const roomNameToUse = pendingRoomName || buildRoomName(currentPeerSessionId);
       await sendSignal('connect-accepted', currentPeerSessionId, { roomName: roomNameToUse });
-      startDailyCall(roomNameToUse);
+      await startWebRTCCall(currentPeerSessionId, false);
     }
 
     // Caller receives acceptance
@@ -501,17 +624,31 @@
       document.getElementById('peer-name').innerText = targetPeerName;
 
       const roomNameToUse = roomName || pendingRoomName || buildRoomName(fromSessionId);
-      startDailyCall(roomNameToUse);
+      await startWebRTCCall(fromSessionId, true);
     }
 
     window.endCall = async function (notify = true) {
       if (notify && currentPeerSessionId) {
         await sendSignal('call-ended', currentPeerSessionId);
       }
-      if (dailyCallFrame) {
-        dailyCallFrame.destroy();
-        dailyCallFrame = null;
+
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
       }
+
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+
+      if (remoteVideoEl) {
+        remoteVideoEl.srcObject = null;
+      }
+      if (localVideoEl) {
+        localVideoEl.srcObject = null;
+      }
+
       document.getElementById('daily-container').innerHTML = '';
       document.getElementById('video-container').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
@@ -519,6 +656,7 @@
       document.getElementById('call-timer').innerText = `${SESSION_DURATION_MINUTES.toString().padStart(2, '0')}:00`;
       currentPeerSessionId = null;
       pendingRoomName = null;
+      isInitiator = false;
     }
   </script>
 </body>
