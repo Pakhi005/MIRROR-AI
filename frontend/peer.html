@@ -312,6 +312,11 @@
         .on('broadcast', { event: 'webrtc-ice-candidate' }, (payload) => {
           if (payload.payload.targetUserId === myUuid) handleWebrtcIceCandidate(payload.payload);
         })
+        .on('broadcast', { event: 'webrtc-ice-candidates' }, (payload) => {
+          if (payload.payload.targetUserId === myUuid) {
+            payload.payload.candidates.forEach(cand => handleWebrtcIceCandidate({candidate: cand}));
+          }
+        })
         .on('broadcast', { event: 'call-ended' }, (payload) => {
           if (payload.payload.targetUserId === myUuid) window.endCall(false);
         })
@@ -399,6 +404,8 @@
     let isMuted = false;
     let isCameraOff = false;
     let iceCandidateQueue = [];
+    let batchedIceCandidates = [];
+    let iceBatchTimeout = null;
 
     const servers = {
       iceServers: [
@@ -429,14 +436,21 @@
 
       peerConnection.onicecandidate = event => {
         if (event.candidate) {
-          channel.send({
-            type: 'broadcast',
-            event: 'webrtc-ice-candidate',
-            payload: {
-              targetUserId,
-              candidate: event.candidate
-            }
-          });
+          batchedIceCandidates.push(event.candidate);
+          if (!iceBatchTimeout) {
+            iceBatchTimeout = setTimeout(() => {
+              channel.send({
+                type: 'broadcast',
+                event: 'webrtc-ice-candidates',
+                payload: {
+                  targetUserId,
+                  candidates: batchedIceCandidates
+                }
+              });
+              batchedIceCandidates = [];
+              iceBatchTimeout = null;
+            }, 500);
+          }
         }
       };
 
@@ -482,7 +496,7 @@
           payload: {
             targetUserId: currentPeerUserId,
             fromUserId: myUuid,
-            sdp: offer
+            sdp: peerConnection.localDescription
           }
         });
       } catch (err) {
@@ -519,7 +533,7 @@
           event: 'webrtc-answer',
           payload: {
             targetUserId: currentPeerUserId,
-            sdp: answer
+            sdp: peerConnection.localDescription
           }
         });
       } catch (err) {
@@ -590,6 +604,9 @@
       document.getElementById('remote-video').srcObject = null;
       currentPeerUserId = null;
       iceCandidateQueue = [];
+      batchedIceCandidates = [];
+      clearTimeout(iceBatchTimeout);
+      iceBatchTimeout = null;
 
       document.getElementById('main-content').style.display = 'block';
       document.getElementById('video-container').style.display = 'none';
