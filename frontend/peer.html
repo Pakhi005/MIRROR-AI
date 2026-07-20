@@ -290,10 +290,11 @@
     async function initLobby() {
       if (lobbyUnsubscribe) return;
 
-      const el = document.getElementById('conn-status');
+      console.log('[PEER] Initializing lobby...');
 
       // Write ourselves into the lobby
       const myRef = doc(db, 'peer-lobby', mySessionId);
+      console.log('[PEER] Writing self to lobby with sessionId:', mySessionId);
       await setDoc(myRef, {
         sessionId: mySessionId,
         userId: myUuid,
@@ -350,8 +351,10 @@
           snapshot.docChanges().forEach(async (change) => {
             if (change.type !== 'added') return;
             const sig = change.doc.data();
+            console.log('[PEER] Signal received:', sig.event, 'from:', sig.fromSessionId);
             await deleteDoc(change.doc.ref); // consume signal
             if (sig.event === 'connect-request') {
+              console.log('[PEER] Received connect-request');
               pendingRequestSessionId = sig.fromSessionId;
               pendingRoomName = sig.roomName || null;
               peerNameFromReq = sig.fromName;
@@ -364,9 +367,9 @@
             } else if (sig.event === 'webrtc-offer') {
               await handleIncomingOffer(sig.fromSessionId, sig.sdp);
             } else if (sig.event === 'webrtc-answer') {
-              await handleIncomingAnswer(sig.sdp);
+              await handleIncomingAnswer(sig.fromSessionId, sig.sdp);
             } else if (sig.event === 'webrtc-ice-candidate') {
-              await handleIncomingIceCandidate(sig.candidate);
+              await handleIncomingIceCandidate(sig.fromSessionId, sig.candidate);
             } else if (sig.event === 'call-ended') {
               window.endCall(false);
             }
@@ -382,6 +385,7 @@
     }
 
     async function sendSignal(event, targetSessionId, extra = {}) {
+      console.log('[PEER] Sending signal:', event, 'to:', targetSessionId);
       await addDoc(collection(db, 'peer-signals'), {
         event,
         targetSessionId,
@@ -390,6 +394,7 @@
         ...extra,
         ts: serverTimestamp()
       });
+      console.log('[PEER] Signal sent successfully');
     }
 
     function renderOnlineUsers(users) {
@@ -440,11 +445,13 @@
     }
 
     window.connectPeer = function (targetSessionId, peerName) {
+      console.log('[PEER] connectPeer called with:', { targetSessionId, peerName });
       targetPeerName = peerName;
       const roomName = buildRoomName(targetSessionId);
       pendingRoomName = roomName;
-      alert("Request sent to " + peerName + "! A 30-minute video session will start once they accept.");
+      console.log('[PEER] Sending connect-request signal');
       sendSignal('connect-request', targetSessionId, { fromDomain: myDomain, roomName });
+      alert("Request sent to " + peerName + "! A 30-minute video session will start once they accept.");
     }
 
     window.declineRequest = function () {
@@ -503,9 +510,12 @@
     }
 
     function createPeerConnection() {
-      if (peerConnection) return peerConnection;
+      if (peerConnection) {
+        console.log('[PEER] Reusing existing peer connection');
+        return peerConnection;
+      }
 
-      peerConnection = new RTCPeerConnection({
+      console.log('[PEER] Creating new peer connection');
         iceServers: [
           { urls: ['stun:stun.l.google.com:19302'] },
           { urls: ['stun:stun1.l.google.com:19302'] },
@@ -517,6 +527,7 @@
       });
 
       peerConnection.ontrack = (event) => {
+        console.log('[PEER] Received remote track:', event.track.kind);
         remoteStream = event.streams[0];
         if (remoteVideoEl) {
           remoteVideoEl.srcObject = remoteStream;
@@ -527,6 +538,7 @@
 
       peerConnection.onicecandidate = async (event) => {
         if (event.candidate && currentPeerSessionId) {
+          console.log('[PEER] Sending ICE candidate');
           await sendSignal('webrtc-ice-candidate', currentPeerSessionId, {
             candidate: event.candidate.toJSON()
           });
@@ -552,13 +564,15 @@
       if (localStream) return localStream;
 
       try {
+        console.log('[PEER] Requesting camera/microphone access...');
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        console.log('[PEER] Camera/mic access granted');
         if (localVideoEl) {
           localVideoEl.srcObject = localStream;
           await localVideoEl.play().catch(() => {});
         }
       } catch (err) {
-        console.error('Camera/mic access failed:', err);
+        console.error('[PEER] Camera/mic access failed:', err);
         alert('Camera and microphone access are required for the peer call.');
         throw err;
       }
@@ -596,52 +610,73 @@
     }
 
     async function handleIncomingOffer(fromSessionId, sdp) {
+      console.log('[PEER] Received offer from:', fromSessionId);
       currentPeerSessionId = fromSessionId;
       document.getElementById('peer-name').innerText = targetPeerName;
       await startWebRTCCall(fromSessionId, false);
 
       if (peerConnection && sdp) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        await sendSignal('webrtc-answer', fromSessionId, { sdp: serializeSessionDescription(answer) });
+        console.log('[PEER] Setting remote description from offer...');
+        try {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+          console.log('[PEER] Remote description set, creating answer...');
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          console.log('[PEER] Sending answer to peer...');
+          await sendSignal('webrtc-answer', fromSessionId, { sdp: serializeSessionDescription(answer) });
+        } catch (err) {
+          console.error('[PEER] Error handling offer:', err);
+        }
       }
     }
 
-    async function handleIncomingAnswer(sdp) {
+    async function handleIncomingAnswer(fromSessionId, sdp) {
+      console.log('[PEER] Received answer from:', fromSessionId);
       if (peerConnection && sdp) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+        try {
+          console.log('[PEER] Setting remote description from answer...');
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+          console.log('[PEER] Remote description set successfully');
+        } catch (err) {
+          console.error('[PEER] Error handling answer:', err);
+        }
       }
     }
 
-    async function handleIncomingIceCandidate(candidate) {
+    async function handleIncomingIceCandidate(fromSessionId, candidate) {
       if (peerConnection && candidate) {
         try {
+          console.log('[PEER] Adding ICE candidate from:', fromSessionId);
           await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (err) {
-          console.warn('ICE candidate ignored:', err);
+          console.warn('[PEER] ICE candidate ignored:', err.message);
         }
       }
     }
 
     // Callee accepts
     window.acceptRequest = async function () {
+      console.log('[PEER] acceptRequest called');
       document.getElementById('request-overlay').style.display = 'none';
       currentPeerSessionId = pendingRequestSessionId;
       document.getElementById('peer-name').innerText = peerNameFromReq;
 
       const roomNameToUse = pendingRoomName || buildRoomName(currentPeerSessionId);
+      console.log('[PEER] Sending connect-accepted signal');
       await sendSignal('connect-accepted', currentPeerSessionId, { roomName: roomNameToUse });
+      console.log('[PEER] Starting WebRTC call as callee');
       await startWebRTCCall(currentPeerSessionId, false);
     }
 
     // Caller receives acceptance
     async function handleRequestAccepted(fromSessionId, roomName = null) {
+      console.log('[PEER] handleRequestAccepted called with:', { fromSessionId, roomName });
       alert("Request Accepted! Joining your 30-minute video session...");
       currentPeerSessionId = fromSessionId;
       document.getElementById('peer-name').innerText = targetPeerName;
 
       const roomNameToUse = roomName || pendingRoomName || buildRoomName(fromSessionId);
+      console.log('[PEER] Starting WebRTC call as initiator');
       await startWebRTCCall(fromSessionId, true);
     }
 
