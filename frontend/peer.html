@@ -256,21 +256,23 @@
     function initSupabasePresence() {
       if (channel) return; // already initialized
 
-      channel = supabaseClient.channel('mirror-ai-peer-room', {
-        config: {
-          presence: { key: mySessionId }
-        }
-      });
+      // Use broadcast-only channel (no presence needed — more reliable)
+      channel = supabaseClient.channel('mirror-ai-peer-room-v2');
 
       channel
-        .on('presence', { event: 'sync' }, () => {
-          updateUserList();
+        .on('broadcast', { event: 'heartbeat' }, (payload) => {
+          const p = payload.payload;
+          if (p.sessionId && p.sessionId !== mySessionId) {
+            onlineUsers[p.sessionId] = { ...p, lastSeen: Date.now() };
+            renderOnlineUsers(Object.values(onlineUsers));
+          }
         })
-        .on('presence', { event: 'join' }, () => {
-          updateUserList();
-        })
-        .on('presence', { event: 'leave' }, () => {
-          updateUserList();
+        .on('broadcast', { event: 'bye' }, (payload) => {
+          const p = payload.payload;
+          if (p.sessionId && onlineUsers[p.sessionId]) {
+            delete onlineUsers[p.sessionId];
+            renderOnlineUsers(Object.values(onlineUsers));
+          }
         })
         .on('broadcast', { event: 'connect-request' }, (payload) => {
           if (payload.payload.targetSessionId === mySessionId) {
@@ -289,35 +291,49 @@
         .on('broadcast', { event: 'call-ended' }, (payload) => {
           if (payload.payload.targetSessionId === mySessionId) window.endCall(false);
         })
-        .subscribe(async (status) => {
+        .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            await channel.track({
-              userId: myUuid,
-              sessionId: mySessionId,
-              name: myName,
-              domain: myDomain,
-              year: myYear
-            });
+            // Start sending heartbeat immediately, then every 5s
+            sendHeartbeat();
+            setInterval(sendHeartbeat, 5000);
+            // Clean up stale users every 6s
+            setInterval(() => {
+              const now = Date.now();
+              let changed = false;
+              for (const sid in onlineUsers) {
+                if (now - onlineUsers[sid].lastSeen > 12000) {
+                  delete onlineUsers[sid];
+                  changed = true;
+                }
+              }
+              if (changed) renderOnlineUsers(Object.values(onlineUsers));
+            }, 6000);
           }
         });
+
+      // Broadcast 'bye' when tab closes
+      window.addEventListener('beforeunload', () => {
+        channel.send({ type: 'broadcast', event: 'bye', payload: { sessionId: mySessionId } });
+      });
     }
 
-    function updateUserList() {
+    function sendHeartbeat() {
       if (!channel) return;
-      const state = channel.presenceState();
-      const users = [];
-      for (const key in state) {
-        state[key].forEach(presence => {
-          // Exclude our own session
-          if (presence.sessionId && presence.sessionId !== mySessionId) {
-            users.push(presence);
-          } else if (!presence.sessionId && presence.userId && presence.userId !== myUuid) {
-            users.push(presence);
-          }
-        });
-      }
-      renderOnlineUsers(users);
+      channel.send({
+        type: 'broadcast',
+        event: 'heartbeat',
+        payload: {
+          sessionId: mySessionId,
+          userId: myUuid,
+          name: myName,
+          domain: myDomain,
+          year: myYear
+        }
+      });
     }
+
+    // In-memory map of online users: sessionId -> userInfo
+    const onlineUsers = {};
 
     function renderOnlineUsers(users) {
       document.getElementById('online-count').innerText = users.length;
