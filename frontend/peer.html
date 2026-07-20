@@ -485,8 +485,10 @@
       peerConnection.ontrack = event => {
         logDebug(`Received remote track: ${event.track.kind}`);
         const remoteVideo = document.getElementById('remote-video');
-        remoteVideo.srcObject = event.streams[0];
-        remoteVideo.play().catch(e => logDebug("Video play error: " + e.message));
+        if (remoteVideo.srcObject !== event.streams[0]) {
+          remoteVideo.srcObject = event.streams[0];
+          remoteVideo.play().catch(e => logDebug("Video play error: " + e.message));
+        }
       };
 
       return peerConnection;
