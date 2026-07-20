@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,12 +17,14 @@
       flex-wrap: wrap;
       gap: 16px;
     }
+
     .online-count {
       display: flex;
       align-items: center;
       gap: 12px;
       font-weight: 500;
     }
+
     .filters {
       display: flex;
       gap: 16px;
@@ -43,11 +46,17 @@
       gap: 24px;
       grid-template-columns: repeat(1, 1fr);
     }
+
     @media (min-width: 768px) {
-      .peer-grid { grid-template-columns: repeat(2, 1fr); }
+      .peer-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
+
     @media (min-width: 1024px) {
-      .peer-grid { grid-template-columns: repeat(3, 1fr); }
+      .peer-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
     }
 
     .user-card {
@@ -82,7 +91,7 @@
       font-weight: 600;
       color: var(--accent-secondary);
     }
-    
+
     .status-badge {
       display: flex;
       align-items: center;
@@ -101,13 +110,14 @@
       color: white;
       margin-bottom: 4px;
     }
-    
+
     .user-degree {
       color: var(--text-secondary);
       font-size: 14px;
     }
   </style>
 </head>
+
 <body>
 
   <div class="container page-load">
@@ -125,7 +135,7 @@
 
     <main id="main-content">
       <h1 class="space-grotesk" style="font-size: 32px; margin-bottom: 24px;">Peer Connect</h1>
-      
+
       <div class="top-bar">
         <div class="online-count text-primary">
           <span class="online-dot"></span> <span id="online-count">0</span> people online now
@@ -152,24 +162,34 @@
         <h2 class="space-grotesk">In Call with <span id="peer-name">Peer</span></h2>
         <div class="badge badge-danger text-lg" id="call-timer" style="font-size: 18px; padding: 6px 16px;">30:00</div>
       </div>
-      
-      <div style="flex: 1; position: relative; background: #000; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-md);">
+
+      <div
+        style="flex: 1; position: relative; background: #000; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-md);">
         <video id="remote-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
-        
+
         <!-- Local Video PIP -->
-        <div style="position: absolute; bottom: 24px; right: 24px; width: 200px; height: 150px; background: #222; border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;">
-          <video id="local-video" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+        <div
+          style="position: absolute; bottom: 24px; right: 24px; width: 200px; height: 150px; background: #222; border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;">
+          <video id="local-video" autoplay playsinline muted
+            style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
         </div>
-        
+
         <!-- Controls -->
-        <div style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 16px; z-index: 10; background: rgba(0,0,0,0.5); padding: 12px 24px; border-radius: 999px; backdrop-filter: blur(8px);">
-          <button id="btn-mute" class="btn btn-secondary" style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="toggleMute()">
+        <div
+          style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 16px; z-index: 10; background: rgba(0,0,0,0.5); padding: 12px 24px; border-radius: 999px; backdrop-filter: blur(8px);">
+          <button id="btn-mute" class="btn btn-secondary"
+            style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;"
+            onclick="toggleMute()">
             <i id="icon-mute" class="ti ti-microphone" style="font-size: 20px;"></i>
           </button>
-          <button id="btn-camera" class="btn btn-secondary" style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="toggleVideo()">
+          <button id="btn-camera" class="btn btn-secondary"
+            style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;"
+            onclick="toggleVideo()">
             <i id="icon-camera" class="ti ti-video" style="font-size: 20px;"></i>
           </button>
-          <button class="btn btn-danger" style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="endCall()">
+          <button class="btn btn-danger"
+            style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;"
+            onclick="endCall()">
             <i class="ti ti-phone-x" style="font-size: 20px;"></i>
           </button>
         </div>
@@ -179,11 +199,13 @@
     <!-- Connect Modal -->
     <div class="modal-overlay" id="request-overlay" style="display: none;">
       <div class="modal-content" id="request-modal">
-        <h3 class="space-grotesk" style="font-size: 24px; text-align: center; margin-bottom: 24px;" id="request-text">User wants to connect!</h3>
+        <h3 class="space-grotesk" style="font-size: 24px; text-align: center; margin-bottom: 24px;" id="request-text">
+          User wants to connect!</h3>
         <p class="text-secondary text-center mb-6">They are inviting you to a practice session.</p>
-        
+
         <div class="flex flex-col gap-4 mb-6">
-          <label class="flex items-center gap-2 text-primary" style="padding: 12px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--accent-primary); cursor: pointer;">
+          <label class="flex items-center gap-2 text-primary"
+            style="padding: 12px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--accent-primary); cursor: pointer;">
             <input type="radio" name="activity" checked> Mock interview practice
           </label>
         </div>
@@ -191,7 +213,7 @@
         <div class="flex justify-between items-center mb-6">
           <span class="text-secondary"><i class="ti ti-clock"></i> Session: 30:00 minutes</span>
         </div>
-        
+
         <div class="flex gap-4">
           <button class="btn btn-secondary" style="width: 100%;" onclick="declineRequest()">Decline</button>
           <button class="btn btn-primary" style="width: 100%;" onclick="acceptRequest()">Accept</button>
@@ -212,13 +234,10 @@
     import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     // 🔴 IMPORTANT: REPLACE THESE WITH YOUR SUPABASE CREDENTIALS 🔴
-    const SUPABASE_URL = "YOUR_SUPABASE_URL";
-    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
-    
-    // Check if user has updated credentials
-    if (SUPABASE_URL === "YOUR_SUPABASE_URL") {
-      alert("WARNING: Supabase URL and Key are missing! Please edit peer.html and add your Supabase credentials at line 183.");
-    }
+    const SUPABASE_URL = "https://tuexeruyxwywpuomkpui.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_lmrZTlw-xknTBkB6xkCi7g_CxV2FG2Y";
+
+
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let channel;
@@ -227,7 +246,7 @@
     let myDomain = "Software Engineering";
     let myYear = "Demo User";
     let myUuid = crypto.randomUUID();
-    
+
     let pendingRequestUserId = null;
     let peerNameFromReq = "Peer";
     let targetPeerName = "Peer";
@@ -247,12 +266,12 @@
 
     // Fallback if auth is slow or anonymous
     setTimeout(() => {
-      if(!channel) initSupabasePresence();
+      if (!channel) initSupabasePresence();
     }, 2000);
 
     function initSupabasePresence() {
       if (channel) return; // already initialized
-      
+
       channel = supabaseClient.channel('mirror-ai-peer-room', {
         config: {
           presence: { key: myUuid }
@@ -265,36 +284,36 @@
           const users = [];
           for (const key in state) {
             state[key].forEach(presence => {
-               if(presence.userId !== myUuid) users.push(presence);
+              if (presence.userId !== myUuid) users.push(presence);
             });
           }
           renderOnlineUsers(users);
         })
         .on('broadcast', { event: 'connect-request' }, (payload) => {
-           if(payload.payload.targetUserId === myUuid) {
-              pendingRequestUserId = payload.payload.fromUserId;
-              peerNameFromReq = payload.payload.fromName;
-              document.getElementById('request-text').innerText = `${payload.payload.fromName} wants to connect!`;
-              document.getElementById('request-overlay').style.display = 'flex';
-           }
+          if (payload.payload.targetUserId === myUuid) {
+            pendingRequestUserId = payload.payload.fromUserId;
+            peerNameFromReq = payload.payload.fromName;
+            document.getElementById('request-text').innerText = `${payload.payload.fromName} wants to connect!`;
+            document.getElementById('request-overlay').style.display = 'flex';
+          }
         })
         .on('broadcast', { event: 'connect-declined' }, (payload) => {
-           if(payload.payload.targetUserId === myUuid) alert("Your request was declined.");
+          if (payload.payload.targetUserId === myUuid) alert("Your request was declined.");
         })
         .on('broadcast', { event: 'connect-accepted' }, (payload) => {
-           if(payload.payload.targetUserId === myUuid) handleRequestAccepted(payload.payload.fromUserId);
+          if (payload.payload.targetUserId === myUuid) handleRequestAccepted(payload.payload.fromUserId);
         })
         .on('broadcast', { event: 'webrtc-offer' }, (payload) => {
-           if(payload.payload.targetUserId === myUuid) handleWebrtcOffer(payload.payload);
+          if (payload.payload.targetUserId === myUuid) handleWebrtcOffer(payload.payload);
         })
         .on('broadcast', { event: 'webrtc-answer' }, (payload) => {
-           if(payload.payload.targetUserId === myUuid) handleWebrtcAnswer(payload.payload);
+          if (payload.payload.targetUserId === myUuid) handleWebrtcAnswer(payload.payload);
         })
         .on('broadcast', { event: 'webrtc-ice-candidate' }, (payload) => {
-           if(payload.payload.targetUserId === myUuid) handleWebrtcIceCandidate(payload.payload);
+          if (payload.payload.targetUserId === myUuid) handleWebrtcIceCandidate(payload.payload);
         })
         .on('broadcast', { event: 'call-ended' }, (payload) => {
-           if(payload.payload.targetUserId === myUuid) window.endCall(false);
+          if (payload.payload.targetUserId === myUuid) window.endCall(false);
         })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
@@ -311,14 +330,14 @@
     function renderOnlineUsers(users) {
       document.getElementById('online-count').innerText = users.length;
       const grid = document.getElementById('user-grid');
-      grid.innerHTML = ''; 
+      grid.innerHTML = '';
 
       users.forEach((user, index) => {
         const initials = user.name.substring(0, 2).toUpperCase();
         const colors = ['var(--accent-primary)', 'var(--accent-secondary)', 'var(--accent-danger)'];
         const badgeColors = ['badge-primary', 'badge-secondary', 'badge-danger'];
         const cIndex = index % colors.length;
-        
+
         const card = document.createElement('div');
         card.className = 'card interactive peer-card user-card';
         card.innerHTML = `
@@ -345,7 +364,7 @@
       });
     }
 
-    window.connectPeer = function(targetUserId, peerName) {
+    window.connectPeer = function (targetUserId, peerName) {
       targetPeerName = peerName;
       alert("Request sent to " + peerName + "! Waiting for response...");
       channel.send({
@@ -360,7 +379,7 @@
       });
     }
 
-    window.declineRequest = function() {
+    window.declineRequest = function () {
       if (pendingRequestUserId) {
         channel.send({
           type: 'broadcast',
@@ -396,10 +415,10 @@
 
     function createPeerConnection(targetUserId) {
       peerConnection = new RTCPeerConnection(servers);
-      
+
       peerConnection.oniceconnectionstatechange = () => {
-        if(peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
-           window.endCall();
+        if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
+          window.endCall();
         }
       };
 
@@ -423,16 +442,16 @@
       peerConnection.ontrack = event => {
         document.getElementById('remote-video').srcObject = event.streams[0];
       };
-      
+
       return peerConnection;
     }
 
     // Callee accepts
-    window.acceptRequest = async function() {
+    window.acceptRequest = async function () {
       document.getElementById('request-overlay').style.display = 'none';
       currentPeerUserId = pendingRequestUserId;
       document.getElementById('peer-name').innerText = peerNameFromReq;
-      
+
       channel.send({
         type: 'broadcast',
         event: 'connect-accepted',
@@ -449,13 +468,13 @@
       try {
         currentPeerUserId = fromUserId;
         document.getElementById('peer-name').innerText = targetPeerName;
-        
+
         await initCall();
         createPeerConnection(currentPeerUserId);
 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
-        
+
         channel.send({
           type: 'broadcast',
           event: 'webrtc-offer',
@@ -465,7 +484,7 @@
             sdp: offer
           }
         });
-      } catch(err) {
+      } catch (err) {
         alert("Failed to join call. Error: " + err.message);
         console.error(err);
       }
@@ -477,11 +496,11 @@
         if (!localStream) {
           await initCall();
         }
-        createPeerConnection(currentPeerUserId); 
+        createPeerConnection(currentPeerUserId);
         await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
-        
+
         channel.send({
           type: 'broadcast',
           event: 'webrtc-answer',
@@ -490,9 +509,9 @@
             sdp: answer
           }
         });
-      } catch(err) {
-         console.error("Error handling offer", err);
-         alert("Call error: " + err.message);
+      } catch (err) {
+        console.error("Error handling offer", err);
+        alert("Call error: " + err.message);
       }
     }
 
@@ -514,7 +533,7 @@
       }
     }
 
-    window.toggleMute = function() {
+    window.toggleMute = function () {
       if (localStream) {
         isMuted = !isMuted;
         localStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
@@ -524,7 +543,7 @@
       }
     }
 
-    window.toggleVideo = function() {
+    window.toggleVideo = function () {
       if (localStream) {
         isCameraOff = !isCameraOff;
         localStream.getVideoTracks().forEach(track => track.enabled = !isCameraOff);
@@ -534,7 +553,7 @@
       }
     }
 
-    window.endCall = async function(notify = true) {
+    window.endCall = async function (notify = true) {
       if (notify && currentPeerUserId) {
         channel.send({
           type: 'broadcast',
@@ -553,7 +572,7 @@
       document.getElementById('local-video').srcObject = null;
       document.getElementById('remote-video').srcObject = null;
       currentPeerUserId = null;
-      
+
       document.getElementById('main-content').style.display = 'block';
       document.getElementById('video-container').style.display = 'none';
       clearInterval(timerInterval);
@@ -577,4 +596,5 @@
     }
   </script>
 </body>
+
 </html>
