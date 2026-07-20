@@ -595,7 +595,11 @@
       stream.getTracks().forEach((track) => {
         if (!existingTracks.has(track.id)) {
           console.log('[PEER] Adding local track:', track.kind);
-          pc.addTrack(track, stream);
+          try {
+            pc.addTrack(track, stream);
+          } catch (err) {
+            console.error('[PEER] Error adding track:', err);
+          }
         } else {
           console.log('[PEER] Track already added:', track.kind);
         }
@@ -637,16 +641,22 @@
       }
 
       if (peerConnection && sdp) {
-        console.log('[PEER] Setting remote description from offer...');
-        try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
-          console.log('[PEER] Remote description set, creating answer...');
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-          console.log('[PEER] Sending answer to peer...');
-          await sendSignal('webrtc-answer', fromSessionId, { sdp: serializeSessionDescription(answer) });
-        } catch (err) {
-          console.error('[PEER] Error handling offer:', err);
+        console.log('[PEER] Current connection state:', peerConnection.signalingState);
+        // Only set remote description if we're in the right state
+        if (peerConnection.signalingState === 'stable' || peerConnection.signalingState === 'have-local-offer') {
+          try {
+            console.log('[PEER] Setting remote description from offer...');
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+            console.log('[PEER] Remote description set, creating answer...');
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            console.log('[PEER] Sending answer to peer...');
+            await sendSignal('webrtc-answer', fromSessionId, { sdp: serializeSessionDescription(answer) });
+          } catch (err) {
+            console.error('[PEER] Error handling offer:', err);
+          }
+        } else {
+          console.warn('[PEER] Ignoring offer in state:', peerConnection.signalingState);
         }
       }
     }
@@ -654,12 +664,18 @@
     async function handleIncomingAnswer(fromSessionId, sdp) {
       console.log('[PEER] Received answer from:', fromSessionId);
       if (peerConnection && sdp) {
-        try {
-          console.log('[PEER] Setting remote description from answer...');
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
-          console.log('[PEER] Remote description set successfully');
-        } catch (err) {
-          console.error('[PEER] Error handling answer:', err);
+        console.log('[PEER] Current connection state:', peerConnection.signalingState);
+        // Only set remote description if we're in have-local-offer state
+        if (peerConnection.signalingState === 'have-local-offer') {
+          try {
+            console.log('[PEER] Setting remote description from answer...');
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+            console.log('[PEER] Remote description set successfully');
+          } catch (err) {
+            console.error('[PEER] Error handling answer:', err);
+          }
+        } else {
+          console.warn('[PEER] Ignoring answer in state:', peerConnection.signalingState, '(expected have-local-offer)');
         }
       }
     }
