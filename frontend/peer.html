@@ -141,6 +141,7 @@
         <div class="online-count text-primary">
           <span class="online-dot"></span> <span id="online-count">0</span> people online now
         </div>
+        <div id="conn-status" style="font-size: 12px; color: #facc15; padding: 4px 10px; background: rgba(250,204,21,0.1); border-radius: 999px; border: 1px solid rgba(250,204,21,0.3);">⏳ Connecting...</div>
         <div class="filters">
           <select class="select-dropdown">
             <option>All Domains</option>
@@ -292,7 +293,9 @@
           if (payload.payload.targetSessionId === mySessionId) window.endCall(false);
         })
         .subscribe((status) => {
+          const el = document.getElementById('conn-status');
           if (status === 'SUBSCRIBED') {
+            if (el) { el.style.color = '#4ade80'; el.style.borderColor = 'rgba(74,222,128,0.3)'; el.style.background = 'rgba(74,222,128,0.1)'; el.innerText = '✅ Connected'; }
             // Start sending heartbeat immediately, then every 5s
             sendHeartbeat();
             setInterval(sendHeartbeat, 5000);
@@ -308,6 +311,8 @@
               }
               if (changed) renderOnlineUsers(Object.values(onlineUsers));
             }, 6000);
+          } else if (el) {
+            el.innerText = '❌ Status: ' + status;
           }
         });
 
