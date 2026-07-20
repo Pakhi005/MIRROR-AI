@@ -587,7 +587,19 @@
     async function attachLocalStreamToPeer() {
       const stream = await ensureLocalMedia();
       const pc = createPeerConnection();
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      
+      // Check if tracks are already added
+      const existingSenders = pc.getSenders();
+      const existingTracks = new Set(existingSenders.map(s => s.track?.id));
+      
+      stream.getTracks().forEach((track) => {
+        if (!existingTracks.has(track.id)) {
+          console.log('[PEER] Adding local track:', track.kind);
+          pc.addTrack(track, stream);
+        } else {
+          console.log('[PEER] Track already added:', track.kind);
+        }
+      });
       return pc;
     }
 
@@ -615,9 +627,14 @@
 
     async function handleIncomingOffer(fromSessionId, sdp) {
       console.log('[PEER] Received offer from:', fromSessionId);
-      currentPeerSessionId = fromSessionId;
-      document.getElementById('peer-name').innerText = targetPeerName;
-      await startWebRTCCall(fromSessionId, false);
+      
+      // If this is the first time receiving an offer, initialize the connection
+      if (!peerConnection) {
+        await startWebRTCCall(fromSessionId, false);
+      } else {
+        // Peer connection already exists, just set the remote description
+        console.log('[PEER] Peer connection already exists, handling offer directly');
+      }
 
       if (peerConnection && sdp) {
         console.log('[PEER] Setting remote description from offer...');
