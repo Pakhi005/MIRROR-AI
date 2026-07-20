@@ -258,7 +258,7 @@
           const users = [];
           for (const key in state) {
             state[key].forEach(presence => {
-              if (presence.userId !== myUuid) users.push(presence);
+              if (presence.sessionId && presence.sessionId !== mySessionId) users.push(presence);
             });
           }
           renderOnlineUsers(users);
