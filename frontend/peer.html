@@ -224,10 +224,12 @@
     let mySessionId = uuidv4();
 
     let pendingRequestSessionId = null;
+    let pendingRoomName = null;
     let peerNameFromReq = "Peer";
     let targetPeerName = "Peer";
     let lobbyUnsubscribe = null;
     let signalUnsubscribe = null;
+    const SESSION_DURATION_MINUTES = 30;
 
     // In-memory map of online users
     const onlineUsers = {};
@@ -316,13 +318,14 @@
             await deleteDoc(change.doc.ref); // consume signal
             if (sig.event === 'connect-request') {
               pendingRequestSessionId = sig.fromSessionId;
+              pendingRoomName = sig.roomName || null;
               peerNameFromReq = sig.fromName;
               document.getElementById('request-text').innerText = `${sig.fromName} wants to connect!`;
               document.getElementById('request-overlay').style.display = 'flex';
             } else if (sig.event === 'connect-declined') {
               alert("Your request was declined.");
             } else if (sig.event === 'connect-accepted') {
-              handleRequestAccepted(sig.fromSessionId);
+              handleRequestAccepted(sig.fromSessionId, sig.roomName || null);
             } else if (sig.event === 'call-ended') {
               window.endCall(false);
             }
@@ -385,10 +388,22 @@
       });
     }
 
+    function buildRoomName(targetSessionId) {
+      const safeTarget = (targetSessionId || mySessionId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+      const safeMe = mySessionId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+      return `mirror-${safeMe}-${safeTarget}-${Date.now().toString(36)}`.toLowerCase();
+    }
+
+    function getDailyRoomUrl(roomName) {
+      return `https://peertopeer.daily.co/${roomName}`;
+    }
+
     window.connectPeer = function (targetSessionId, peerName) {
       targetPeerName = peerName;
-      alert("Request sent to " + peerName + "! Waiting for response...");
-      sendSignal('connect-request', targetSessionId, { fromDomain: myDomain });
+      const roomName = buildRoomName(targetSessionId);
+      pendingRoomName = roomName;
+      alert("Request sent to " + peerName + "! A 30-minute video session will start once they accept.");
+      sendSignal('connect-request', targetSessionId, { fromDomain: myDomain, roomName });
     }
 
     window.declineRequest = function () {
@@ -396,6 +411,7 @@
         sendSignal('connect-declined', pendingRequestSessionId);
       }
       pendingRequestSessionId = null;
+      pendingRoomName = null;
       document.getElementById('request-overlay').style.display = 'none';
     }
 
@@ -408,20 +424,27 @@
     const DAILY_ROOM_URL = 'https://peertopeer.daily.co/JO66MYdmRPyGYqLIE5wG';
 
     function startTimer() {
-      let timeLeft = 30 * 60;
+      let timeLeft = SESSION_DURATION_MINUTES * 60;
       const timerEl = document.getElementById('call-timer');
-      timerEl.innerText = "30:00";
+      timerEl.innerText = `${SESSION_DURATION_MINUTES.toString().padStart(2, '0')}:00`;
       clearInterval(timerInterval);
       timerInterval = setInterval(() => {
         timeLeft--;
         const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
         const s = (timeLeft % 60).toString().padStart(2, '0');
         timerEl.innerText = `${m}:${s}`;
-        if (timeLeft <= 0) window.endCall();
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          window.endCall();
+        }
       }, 1000);
     }
 
-    function startDailyCall(targetSessionId) {
+    function startDailyCall(roomNameOrUrl) {
+      const roomUrl = typeof roomNameOrUrl === 'string' && roomNameOrUrl.includes('http')
+        ? roomNameOrUrl
+        : getDailyRoomUrl(roomNameOrUrl || 'mirror-peer-session');
+
       document.getElementById('main-content').style.display = 'none';
       document.getElementById('video-container').style.display = 'flex';
 
@@ -443,7 +466,7 @@
       });
 
       dailyCallFrame
-        .join({ url: DAILY_ROOM_URL, userName: myName })
+        .join({ url: roomUrl, userName: myName })
         .catch(err => {
           console.error('Daily.co join error:', err);
           alert('Could not join the call: ' + err.message);
@@ -466,17 +489,19 @@
       currentPeerSessionId = pendingRequestSessionId;
       document.getElementById('peer-name').innerText = peerNameFromReq;
 
-      await sendSignal('connect-accepted', currentPeerSessionId);
-      startDailyCall(currentPeerSessionId);
+      const roomNameToUse = pendingRoomName || buildRoomName(currentPeerSessionId);
+      await sendSignal('connect-accepted', currentPeerSessionId, { roomName: roomNameToUse });
+      startDailyCall(roomNameToUse);
     }
 
     // Caller receives acceptance
-    async function handleRequestAccepted(fromSessionId) {
-      alert("Request Accepted! Joining call...");
+    async function handleRequestAccepted(fromSessionId, roomName = null) {
+      alert("Request Accepted! Joining your 30-minute video session...");
       currentPeerSessionId = fromSessionId;
       document.getElementById('peer-name').innerText = targetPeerName;
-      
-      startDailyCall(currentPeerSessionId);
+
+      const roomNameToUse = roomName || pendingRoomName || buildRoomName(fromSessionId);
+      startDailyCall(roomNameToUse);
     }
 
     window.endCall = async function (notify = true) {
@@ -491,8 +516,9 @@
       document.getElementById('video-container').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
       clearInterval(timerInterval);
-      document.getElementById('call-timer').innerText = "30:00";
+      document.getElementById('call-timer').innerText = `${SESSION_DURATION_MINUTES.toString().padStart(2, '0')}:00`;
       currentPeerSessionId = null;
+      pendingRoomName = null;
     }
   </script>
 </body>
