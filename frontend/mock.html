@@ -435,6 +435,7 @@
     let mediaRecorder;
     let audioChunks = [];
     let currentAudioBlob = null;
+    let questionScores = []; // Track per-question data: { question, answer, score, good, missing }
     
     // Live speech recognition for real-time transcript display
     let recognition = null;
@@ -725,6 +726,17 @@
         document.getElementById('fb-missing').innerText = data.missing;
         document.getElementById('fb-suggestion').innerText = data.suggestion;
         
+        // Track question-wise score
+        const lastQuestion = conversationHistory.filter(h => h.role === 'assistant').slice(-1)[0];
+        questionScores.push({
+          qNum: currentQuestion,
+          question: lastQuestion ? lastQuestion.content : `Question ${currentQuestion}`,
+          answer: data.transcript || '(No transcript)',
+          score: data.score || 0,
+          good: data.good || '',
+          missing: data.missing || ''
+        });
+        
         window.nextQuestionText = data.next_question;
         
       } catch (err) {
@@ -755,11 +767,13 @@
             const docData = {
               userId: currentUser.uid,
               role: jd.substring(0, 30) + '...', 
+              jd_text: jd,
               date: new Date().toISOString(),
               overall_score: data.overall_score || 0,
               strongest_answer: data.strongest_answer || 'N/A',
               weakest_area: data.weakest_area || 'N/A',
-              tips: data.tips || []
+              tips: data.tips || [],
+              question_scores: questionScores
             };
             console.log('Saving to Firestore:', docData);
             const docRef = await addDoc(collection(db, 'interviews'), docData);
