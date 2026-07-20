@@ -398,6 +398,7 @@
     let timerInterval;
     let isMuted = false;
     let isCameraOff = false;
+    let iceCandidateQueue = [];
 
     const servers = {
       iceServers: [
@@ -490,6 +491,17 @@
       }
     }
 
+    async function processIceQueue() {
+      while(iceCandidateQueue.length > 0) {
+        const candidate = iceCandidateQueue.shift();
+        try {
+          await peerConnection.addIceCandidate(candidate);
+        } catch (e) {
+          console.error("Error adding queued ice candidate", e);
+        }
+      }
+    }
+
     // Callee receives offer
     async function handleWebrtcOffer(payload) {
       try {
@@ -498,6 +510,7 @@
         }
         createPeerConnection(currentPeerUserId);
         await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        processIceQueue();
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
 
@@ -517,19 +530,23 @@
 
     // Caller receives answer
     async function handleWebrtcAnswer(payload) {
-      if (peerConnection && !peerConnection.currentRemoteDescription) {
+      if (peerConnection && !peerConnection.remoteDescription) {
         await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        processIceQueue();
       }
     }
 
     // Both receive ICE candidate
     async function handleWebrtcIceCandidate(payload) {
-      if (peerConnection && payload.candidate) {
+      const candidate = new RTCIceCandidate(payload.candidate);
+      if (peerConnection && peerConnection.remoteDescription) {
         try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+          await peerConnection.addIceCandidate(candidate);
         } catch (e) {
           console.error("Error adding received ice candidate", e);
         }
+      } else {
+        iceCandidateQueue.push(candidate);
       }
     }
 
@@ -572,6 +589,7 @@
       document.getElementById('local-video').srcObject = null;
       document.getElementById('remote-video').srcObject = null;
       currentPeerUserId = null;
+      iceCandidateQueue = [];
 
       document.getElementById('main-content').style.display = 'block';
       document.getElementById('video-container').style.display = 'none';
