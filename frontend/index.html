@@ -174,6 +174,15 @@
       display: none; margin-top: 12px; padding: 10px 14px;
       background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
       border-radius: 8px; color: var(--error); font-size: 13px;
+      line-height: 1.5;
+    }
+    @keyframes shake {
+      0%   { transform: translateX(0); }
+      20%  { transform: translateX(-8px); }
+      40%  { transform: translateX(6px); }
+      60%  { transform: translateX(-4px); }
+      80%  { transform: translateX(2px); }
+      100% { transform: translateX(0); }
     }
 
     @media (max-width: 480px) { .card { margin: 16px; padding: 28px 18px; } }
@@ -261,6 +270,40 @@
     const errBox = document.getElementById('error-msg');
     onAuthStateChanged(auth, u => { if (u) window.location.href = 'home.html'; });
 
+    // ── Friendly error mapper ──
+    function getFriendlyError(errorCode) {
+      const errorMap = {
+        'auth/invalid-email':            'Please enter a valid email address (e.g. name@example.com).',
+        'auth/user-disabled':            'This account has been disabled. Please contact support.',
+        'auth/user-not-found':           'No account found with this email. Please sign up first.',
+        'auth/wrong-password':           'Incorrect password. Please try again.',
+        'auth/invalid-credential':       'Incorrect email or password. Please check and try again.',
+        'auth/email-already-in-use':     'An account with this email already exists. Try logging in instead.',
+        'auth/weak-password':            'Password is too weak. Use at least 6 characters with a mix of letters and numbers.',
+        'auth/too-many-requests':        'Too many failed attempts. Please wait a moment and try again.',
+        'auth/network-request-failed':   'Network error. Please check your internet connection.',
+        'auth/popup-blocked':            'Popup was blocked by your browser. Please allow popups for this site.',
+        'auth/popup-closed-by-user':     'Sign-in popup was closed. Please try again.',
+        'auth/cancelled-popup-request':  'Sign-in was cancelled. Please try again.',
+        'auth/missing-password':         'Please enter your password.',
+      };
+      return errorMap[errorCode] || 'Something went wrong. Please try again.';
+    }
+
+    // ── Client-side email validation ──
+    function isValidEmail(email) {
+      return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email);
+    }
+
+    function showError(msg) {
+      errBox.textContent = msg;
+      errBox.style.display = 'block';
+      // Add a shake animation
+      errBox.style.animation = 'none';
+      errBox.offsetHeight; // trigger reflow
+      errBox.style.animation = 'shake 0.4s ease';
+    }
+
     async function saveUser(user, name) {
       const ref = doc(db, 'users', user.uid);
       if (!(await getDoc(ref)).exists()) {
@@ -270,14 +313,35 @@
 
     document.getElementById('auth-form').addEventListener('submit', async e => {
       e.preventDefault(); errBox.style.display = 'none';
-      const email = document.getElementById('email-input').value;
+      const email = document.getElementById('email-input').value.trim();
       const pass  = document.getElementById('password-input').value;
+
+      // Client-side validation first
+      if (!email) {
+        showError('Please enter your email address.');
+        return;
+      }
+      if (!isValidEmail(email)) {
+        showError('Please enter a valid email address (e.g. name@example.com).');
+        return;
+      }
+      if (!pass) {
+        showError('Please enter your password.');
+        return;
+      }
+      if (!isLogin && pass.length < 6) {
+        showError('Password must be at least 6 characters long.');
+        return;
+      }
+
       try {
         const r = isLogin
           ? await signInWithEmailAndPassword(auth, email, pass)
           : await createUserWithEmailAndPassword(auth, email, pass);
         await saveUser(r.user, r.user.email.split('@')[0]);
-      } catch (ex) { errBox.textContent = ex.message; errBox.style.display = 'block'; }
+      } catch (ex) {
+        showError(getFriendlyError(ex.code));
+      }
     });
 
     document.getElementById('google-btn').addEventListener('click', async () => {
@@ -286,10 +350,7 @@
         const r = await signInWithPopup(auth, provider);
         await saveUser(r.user, r.user.displayName);
       } catch (ex) {
-        errBox.textContent = ex.code === 'auth/popup-blocked'
-          ? 'Popup blocked. Allow popups for this site.'
-          : ex.message;
-        errBox.style.display = 'block';
+        showError(getFriendlyError(ex.code));
       }
     });
   </script>

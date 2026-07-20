@@ -178,6 +178,83 @@
       font-family: 'Inter', sans-serif;
       margin-bottom: 16px;
     }
+
+    /* Validation Error Styling */
+    .validation-error {
+      display: none;
+      margin-bottom: 14px;
+      padding: 12px 16px;
+      background: rgba(178, 58, 48, 0.08);
+      border: 1.5px solid rgba(178, 58, 48, 0.25);
+      border-radius: 10px;
+      color: var(--accent-danger);
+      font-size: 14px;
+      line-height: 1.5;
+      animation: shakeIn 0.4s ease;
+    }
+    .validation-error i {
+      margin-right: 6px;
+    }
+    .validation-error.show {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    @keyframes shakeIn {
+      0%   { transform: translateX(0); opacity: 0; }
+      20%  { transform: translateX(-8px); opacity: 1; }
+      40%  { transform: translateX(6px); }
+      60%  { transform: translateX(-4px); }
+      80%  { transform: translateX(2px); }
+      100% { transform: translateX(0); }
+    }
+    .input-error {
+      border-color: var(--accent-danger) !important;
+      box-shadow: 0 0 0 3px rgba(178, 58, 48, 0.1) !important;
+    }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .toast {
+      min-width: 300px;
+      max-width: 420px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      animation: slideIn 0.35s ease, fadeOut 0.35s ease 3.65s forwards;
+      backdrop-filter: blur(12px);
+    }
+    .toast-error {
+      background: rgba(178, 58, 48, 0.12);
+      border: 1.5px solid rgba(178, 58, 48, 0.3);
+      color: var(--accent-danger);
+    }
+    .toast-success {
+      background: rgba(14, 143, 99, 0.12);
+      border: 1.5px solid rgba(14, 143, 99, 0.3);
+      color: var(--accent-success);
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; transform: translateY(0); }
+      to   { opacity: 0; transform: translateY(-10px); }
+    }
   </style>
 </head>
 <body>
@@ -193,10 +270,21 @@
     </nav>
 
     <!-- Setup Section -->
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
     <div id="setup-section" class="card" style="margin-bottom: 2rem; max-width: 800px; margin: 0 auto;">
       <h2 class="space-grotesk">Job Description</h2>
       <p style="color: var(--text-muted); margin-bottom: 1rem;">Paste the job description here so AI can tailor the questions.</p>
-      <textarea id="jd-input" rows="6" placeholder="e.g. Seeking a Data Analyst with SQL and Python skills..."></textarea>
+      <div id="jd-error" class="validation-error">
+        <i class="ti ti-alert-circle" style="font-size: 18px; margin-top: 1px;"></i>
+        <span id="jd-error-text"></span>
+      </div>
+      <textarea id="jd-input" rows="6" placeholder="e.g. We are looking for a Data Analyst with 2+ years of experience in SQL, Python, and data visualization tools like Tableau..."></textarea>
+      <div id="email-error" class="validation-error">
+        <i class="ti ti-alert-circle" style="font-size: 18px; margin-top: 1px;"></i>
+        <span id="email-error-text"></span>
+      </div>
       <input type="email" id="email-input" placeholder="Your Email (to receive report)" style="width: 100%; background: var(--bg-surface); color: var(--text-primary); border: 1.5px solid var(--border-color); border-radius: 8px; padding: 1rem; font-family: 'Inter', sans-serif; margin-bottom: 16px;">
       <button class="btn btn-primary" style="margin-top: 1rem;" onclick="startInterview()">Start Interview</button>
     </div>
@@ -411,11 +499,119 @@
       }
     }
 
+    // ── Toast Notification Helper ──
+    function showToast(message, type = 'error') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      const icon = type === 'error' ? '⚠️' : '✅';
+      toast.innerHTML = `${icon} <span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    // ── JD Validation ──
+    function validateJD(jdText) {
+      const jd = jdText.trim();
+      const jdInput = document.getElementById('jd-input');
+      const jdError = document.getElementById('jd-error');
+      const jdErrorText = document.getElementById('jd-error-text');
+
+      // Clear previous errors
+      jdInput.classList.remove('input-error');
+      jdError.classList.remove('show');
+
+      if (!jd) {
+        jdErrorText.textContent = 'Please paste a Job Description before starting the interview.';
+        jdError.classList.add('show');
+        jdInput.classList.add('input-error');
+        return false;
+      }
+
+      if (jd.length < 30) {
+        jdErrorText.textContent = 'This doesn\'t look like a valid Job Description. Please paste a complete JD with role details, required skills, and qualifications (at least 30 characters).';
+        jdError.classList.add('show');
+        jdInput.classList.add('input-error');
+        return false;
+      }
+
+      // Check for job-related keywords
+      const jobKeywords = [
+        'experience', 'skills', 'role', 'responsibilities', 'qualifications',
+        'requirements', 'developer', 'engineer', 'analyst', 'manager',
+        'proficient', 'knowledge', 'team', 'work', 'design', 'develop',
+        'build', 'manage', 'years', 'degree', 'python', 'java', 'sql',
+        'javascript', 'react', 'node', 'data', 'cloud', 'aws', 'machine learning',
+        'salary', 'company', 'hiring', 'position', 'candidate', 'intern',
+        'full-time', 'part-time', 'remote', 'hybrid', 'onsite', 'looking for',
+        'seeking', 'apply', 'job', 'opportunity', 'software', 'frontend',
+        'backend', 'fullstack', 'devops', 'testing', 'qa', 'product',
+        'marketing', 'sales', 'support', 'customer', 'communication',
+        'problem solving', 'leadership', 'agile', 'scrum'
+      ];
+      const lowerJD = jd.toLowerCase();
+      const matchedKeywords = jobKeywords.filter(kw => lowerJD.includes(kw));
+
+      if (matchedKeywords.length < 2) {
+        jdErrorText.textContent = 'This doesn\'t appear to be a valid Job Description. A proper JD should include details like the role name, required skills, experience, and responsibilities. Please paste an actual JD.';
+        jdError.classList.add('show');
+        jdInput.classList.add('input-error');
+        return false;
+      }
+
+      return true;
+    }
+
+    // ── Email Validation ──
+    function validateEmail(emailText) {
+      const email = emailText.trim();
+      const emailInput = document.getElementById('email-input');
+      const emailError = document.getElementById('email-error');
+      const emailErrorText = document.getElementById('email-error-text');
+
+      // Clear previous errors
+      emailInput.classList.remove('input-error');
+      emailError.classList.remove('show');
+
+      if (!email) {
+        emailErrorText.textContent = 'Please enter your email address to receive the interview report.';
+        emailError.classList.add('show');
+        emailInput.classList.add('input-error');
+        return false;
+      }
+
+      const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(email)) {
+        emailErrorText.textContent = 'Please enter a valid email address (e.g. name@example.com).';
+        emailError.classList.add('show');
+        emailInput.classList.add('input-error');
+        return false;
+      }
+
+      return true;
+    }
+
+    // Clear errors on input
+    document.getElementById('jd-input').addEventListener('input', () => {
+      document.getElementById('jd-input').classList.remove('input-error');
+      document.getElementById('jd-error').classList.remove('show');
+    });
+    document.getElementById('email-input').addEventListener('input', () => {
+      document.getElementById('email-input').classList.remove('input-error');
+      document.getElementById('email-error').classList.remove('show');
+    });
+
     async function startInterview() {
       const jd = document.getElementById('jd-input').value;
       const email = document.getElementById('email-input').value;
-      if(!jd.trim()) { alert("Please paste a JD first!"); return; }
-      if(!email.trim()) { alert("Please enter your email!"); return; }
+
+      const jdValid = validateJD(jd);
+      const emailValid = validateEmail(email);
+
+      if (!jdValid || !emailValid) {
+        showToast('Please fix the errors above before starting.', 'error');
+        return;
+      }
       
       document.getElementById('setup-section').style.display = 'none';
       document.getElementById('interview-section').style.display = 'grid'; // .mock-layout is a grid
@@ -437,6 +633,7 @@
       } catch (err) {
         console.error(err);
         document.getElementById('ai-question').innerText = "Error loading question.";
+        showToast('Failed to start interview. Please try again.', 'error');
       }
     }
 
