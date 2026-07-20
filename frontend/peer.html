@@ -218,8 +218,18 @@
     let myName = "Guest " + Math.floor(Math.random() * 1000);
     let myDomain = "Software Engineering";
     let myYear = "Demo User";
-    let myUuid = crypto.randomUUID();
-    let mySessionId = crypto.randomUUID();
+    function uuidv4() {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    let myUuid = uuidv4();
+    let mySessionId = uuidv4();
 
     let pendingRequestSessionId = null;
     let peerNameFromReq = "Peer";
@@ -258,7 +268,11 @@
           const users = [];
           for (const key in state) {
             state[key].forEach(presence => {
-              if (presence.sessionId && presence.sessionId !== mySessionId) users.push(presence);
+              if (presence.sessionId) {
+                if (presence.sessionId !== mySessionId) users.push(presence);
+              } else {
+                if (presence.userId !== myUuid) users.push(presence);
+              }
             });
           }
           renderOnlineUsers(users);
