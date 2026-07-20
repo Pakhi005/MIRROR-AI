@@ -251,8 +251,9 @@
     let myDomain = "Software Engineering";
     let myYear = "Demo User";
     let myUuid = crypto.randomUUID();
+    let mySessionId = crypto.randomUUID();
 
-    let pendingRequestUserId = null;
+    let pendingRequestSessionId = null;
     let peerNameFromReq = "Peer";
     let targetPeerName = "Peer";
 
@@ -279,7 +280,7 @@
 
       channel = supabaseClient.channel('mirror-ai-peer-room', {
         config: {
-          presence: { key: myUuid }
+          presence: { key: mySessionId }
         }
       });
 
@@ -295,40 +296,41 @@
           renderOnlineUsers(users);
         })
         .on('broadcast', { event: 'connect-request' }, (payload) => {
-          if (payload.payload.targetUserId === myUuid) {
-            pendingRequestUserId = payload.payload.fromUserId;
+          if (payload.payload.targetSessionId === mySessionId) {
+            pendingRequestSessionId = payload.payload.fromSessionId;
             peerNameFromReq = payload.payload.fromName;
             document.getElementById('request-text').innerText = `${payload.payload.fromName} wants to connect!`;
             document.getElementById('request-overlay').style.display = 'flex';
           }
         })
         .on('broadcast', { event: 'connect-declined' }, (payload) => {
-          if (payload.payload.targetUserId === myUuid) alert("Your request was declined.");
+          if (payload.payload.targetSessionId === mySessionId) alert("Your request was declined.");
         })
         .on('broadcast', { event: 'connect-accepted' }, (payload) => {
-          if (payload.payload.targetUserId === myUuid) handleRequestAccepted(payload.payload.fromUserId);
+          if (payload.payload.targetSessionId === mySessionId) handleRequestAccepted(payload.payload.fromSessionId);
         })
         .on('broadcast', { event: 'webrtc-offer' }, (payload) => {
-          if (payload.payload.targetUserId === myUuid) handleWebrtcOffer(payload.payload);
+          if (payload.payload.targetSessionId === mySessionId) handleWebrtcOffer(payload.payload);
         })
         .on('broadcast', { event: 'webrtc-answer' }, (payload) => {
-          if (payload.payload.targetUserId === myUuid) handleWebrtcAnswer(payload.payload);
+          if (payload.payload.targetSessionId === mySessionId) handleWebrtcAnswer(payload.payload);
         })
         .on('broadcast', { event: 'webrtc-ice-candidate' }, (payload) => {
-          if (payload.payload.targetUserId === myUuid) handleWebrtcIceCandidate(payload.payload);
+          if (payload.payload.targetSessionId === mySessionId) handleWebrtcIceCandidate(payload.payload);
         })
         .on('broadcast', { event: 'webrtc-ice-candidates' }, (payload) => {
-          if (payload.payload.targetUserId === myUuid) {
+          if (payload.payload.targetSessionId === mySessionId) {
             payload.payload.candidates.forEach(cand => handleWebrtcIceCandidate({candidate: cand}));
           }
         })
         .on('broadcast', { event: 'call-ended' }, (payload) => {
-          if (payload.payload.targetUserId === myUuid) window.endCall(false);
+          if (payload.payload.targetSessionId === mySessionId) window.endCall(false);
         })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
             await channel.track({
               userId: myUuid,
+              sessionId: mySessionId,
               name: myName,
               domain: myDomain,
               year: myYear
@@ -366,7 +368,7 @@
           <div>
             <span class="badge ${badgeColors[cIndex]}">${user.domain}</span>
           </div>
-          <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="connectPeer('${user.userId}', '${user.name.replace(/'/g, "\\'")}')">
+          <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="connectPeer('${user.sessionId}', '${user.name.replace(/'/g, "\\'")}')">
             Connect <i class="ti ti-arrow-right"></i>
           </button>
         `;
@@ -374,15 +376,15 @@
       });
     }
 
-    window.connectPeer = function (targetUserId, peerName) {
+    window.connectPeer = function (targetSessionId, peerName) {
       targetPeerName = peerName;
       alert("Request sent to " + peerName + "! Waiting for response...");
       channel.send({
         type: 'broadcast',
         event: 'connect-request',
         payload: {
-          targetUserId,
-          fromUserId: myUuid,
+          targetSessionId,
+          fromSessionId: mySessionId,
           fromName: myName,
           fromDomain: myDomain
         }
@@ -390,14 +392,14 @@
     }
 
     window.declineRequest = function () {
-      if (pendingRequestUserId) {
+      if (pendingRequestSessionId) {
         channel.send({
           type: 'broadcast',
           event: 'connect-declined',
-          payload: { targetUserId: pendingRequestUserId }
+          payload: { targetSessionId: pendingRequestSessionId }
         });
       }
-      pendingRequestUserId = null;
+      pendingRequestSessionId = null;
       document.getElementById('request-overlay').style.display = 'none';
     }
 
@@ -413,7 +415,7 @@
     // --- WebRTC Logic ---
     let localStream = null;
     let peerConnection = null;
-    let currentPeerUserId = null;
+    let currentPeerSessionId = null;
     let timerInterval;
     let isMuted = false;
     let isCameraOff = false;
@@ -445,7 +447,7 @@
       startTimer();
     }
 
-    function createPeerConnection(targetUserId) {
+    function createPeerConnection(targetSessionId) {
       peerConnection = new RTCPeerConnection(servers);
 
       peerConnection.oniceconnectionstatechange = () => {
@@ -473,7 +475,7 @@
                 type: 'broadcast',
                 event: 'webrtc-ice-candidates',
                 payload: {
-                  targetUserId,
+                  targetSessionId,
                   candidates: candidatesToSend
                 }
               });
@@ -497,28 +499,28 @@
     // Callee accepts
     window.acceptRequest = async function () {
       document.getElementById('request-overlay').style.display = 'none';
-      currentPeerUserId = pendingRequestUserId;
+      currentPeerSessionId = pendingRequestSessionId;
       document.getElementById('peer-name').innerText = peerNameFromReq;
 
       channel.send({
         type: 'broadcast',
         event: 'connect-accepted',
         payload: {
-          targetUserId: currentPeerUserId,
-          fromUserId: myUuid
+          targetSessionId: currentPeerSessionId,
+          fromSessionId: mySessionId
         }
       });
     }
 
     // Caller receives acceptance
-    async function handleRequestAccepted(fromUserId) {
+    async function handleRequestAccepted(fromSessionId) {
       alert("Request Accepted! Joining call...");
       try {
-        currentPeerUserId = fromUserId;
+        currentPeerSessionId = fromSessionId;
         document.getElementById('peer-name').innerText = targetPeerName;
 
         await initCall();
-        createPeerConnection(currentPeerUserId);
+        createPeerConnection(currentPeerSessionId);
 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
@@ -528,8 +530,8 @@
           type: 'broadcast',
           event: 'webrtc-offer',
           payload: {
-            targetUserId: currentPeerUserId,
-            fromUserId: myUuid,
+            targetSessionId: currentPeerSessionId,
+            fromSessionId: mySessionId,
             sdp: peerConnection.localDescription
           }
         });
@@ -554,10 +556,11 @@
     async function handleWebrtcOffer(payload) {
       try {
         logDebug("Received Offer");
+        currentPeerSessionId = payload.fromSessionId;
         if (!localStream) {
           await initCall();
         }
-        createPeerConnection(currentPeerUserId);
+        createPeerConnection(currentPeerSessionId);
         await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         processIceQueue();
         const answer = await peerConnection.createAnswer();
@@ -568,7 +571,7 @@
           type: 'broadcast',
           event: 'webrtc-answer',
           payload: {
-            targetUserId: currentPeerUserId,
+            targetSessionId: currentPeerSessionId,
             sdp: peerConnection.localDescription
           }
         });
@@ -624,11 +627,11 @@
     }
 
     window.endCall = async function (notify = true) {
-      if (notify && currentPeerUserId) {
+      if (notify && currentPeerSessionId) {
         channel.send({
           type: 'broadcast',
           event: 'call-ended',
-          payload: { targetUserId: currentPeerUserId }
+          payload: { targetSessionId: currentPeerSessionId }
         });
       }
       if (peerConnection) {
