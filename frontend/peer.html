@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     .top-bar {
       display: flex;
@@ -277,6 +278,7 @@
 
     function initSupabasePresence() {
       if (channel) return; // already initialized
+      initPeerJS();
 
       channel = supabaseClient.channel('mirror-ai-peer-room', {
         config: {
@@ -308,20 +310,6 @@
         })
         .on('broadcast', { event: 'connect-accepted' }, (payload) => {
           if (payload.payload.targetSessionId === mySessionId) handleRequestAccepted(payload.payload.fromSessionId);
-        })
-        .on('broadcast', { event: 'webrtc-offer' }, (payload) => {
-          if (payload.payload.targetSessionId === mySessionId) handleWebrtcOffer(payload.payload);
-        })
-        .on('broadcast', { event: 'webrtc-answer' }, (payload) => {
-          if (payload.payload.targetSessionId === mySessionId) handleWebrtcAnswer(payload.payload);
-        })
-        .on('broadcast', { event: 'webrtc-ice-candidate' }, (payload) => {
-          if (payload.payload.targetSessionId === mySessionId) handleWebrtcIceCandidate(payload.payload);
-        })
-        .on('broadcast', { event: 'webrtc-ice-candidates' }, (payload) => {
-          if (payload.payload.targetSessionId === mySessionId) {
-            payload.payload.candidates.forEach(cand => handleWebrtcIceCandidate({candidate: cand}));
-          }
         })
         .on('broadcast', { event: 'call-ended' }, (payload) => {
           if (payload.payload.targetSessionId === mySessionId) window.endCall(false);
@@ -414,14 +402,12 @@
 
     // --- WebRTC Logic ---
     let localStream = null;
-    let peerConnection = null;
+    let peer = null;
+    let currentCall = null;
     let currentPeerSessionId = null;
     let timerInterval;
     let isMuted = false;
     let isCameraOff = false;
-    let iceCandidateQueue = [];
-    let batchedIceCandidates = [];
-    let iceBatchTimeout = null;
 
     const servers = {
       iceServers: [
@@ -447,53 +433,48 @@
       startTimer();
     }
 
-    function createPeerConnection(targetSessionId) {
-      peerConnection = new RTCPeerConnection(servers);
+    function initPeerJS() {
+      // Use the strict TURN servers we previously tested
+      peer = new Peer(mySessionId, {
+        config: servers,
+        debug: 2
+      });
 
-      peerConnection.oniceconnectionstatechange = () => {
-        logDebug(`ICE State: ${peerConnection.iceConnectionState}`);
-        if (peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
-          window.endCall();
+      peer.on('open', (id) => {
+        logDebug("PeerJS Initialized with ID: " + id);
+      });
+
+      peer.on('error', (err) => {
+        logDebug("PeerJS Error: " + err.type);
+        console.error(err);
+      });
+
+      peer.on('call', async (call) => {
+        logDebug("Incoming call received...");
+        if (!localStream) {
+          await initCall();
         }
-      };
+        currentCall = call;
+        call.answer(localStream); // Answer the call with our stream
 
-      if (localStream) {
-        logDebug("Adding local tracks to PC");
-        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-      }
-
-      peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          batchedIceCandidates.push(event.candidate);
-          if (!iceBatchTimeout) {
-            iceBatchTimeout = setTimeout(() => {
-              const candidatesToSend = [...batchedIceCandidates];
-              batchedIceCandidates = [];
-              iceBatchTimeout = null;
-              
-              channel.send({
-                type: 'broadcast',
-                event: 'webrtc-ice-candidates',
-                payload: {
-                  targetSessionId,
-                  candidates: candidatesToSend
-                }
-              });
-            }, 500);
+        call.on('stream', (remoteStream) => {
+          logDebug(`Received remote track`);
+          const remoteVideo = document.getElementById('remote-video');
+          if (remoteVideo.srcObject !== remoteStream) {
+            remoteVideo.srcObject = remoteStream;
+            remoteVideo.play().catch(e => logDebug("Video play error: " + e.message));
           }
-        }
-      };
+        });
 
-      peerConnection.ontrack = event => {
-        logDebug(`Received remote track: ${event.track.kind}`);
-        const remoteVideo = document.getElementById('remote-video');
-        if (remoteVideo.srcObject !== event.streams[0]) {
-          remoteVideo.srcObject = event.streams[0];
-          remoteVideo.play().catch(e => logDebug("Video play error: " + e.message));
-        }
-      };
-
-      return peerConnection;
+        call.on('close', () => {
+          logDebug("Call closed by peer");
+          window.endCall(false);
+        });
+        
+        call.on('error', (err) => {
+          logDebug("Call error: " + err);
+        });
+      });
     }
 
     // Callee accepts
@@ -520,91 +501,35 @@
         document.getElementById('peer-name').innerText = targetPeerName;
 
         await initCall();
-        createPeerConnection(currentPeerSessionId);
+        
+        logDebug("Calling peer...");
+        currentCall = peer.call(currentPeerSessionId, localStream);
 
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        logDebug("Created & sent Offer");
-
-        channel.send({
-          type: 'broadcast',
-          event: 'webrtc-offer',
-          payload: {
-            targetSessionId: currentPeerSessionId,
-            fromSessionId: mySessionId,
-            sdp: peerConnection.localDescription
+        currentCall.on('stream', (remoteStream) => {
+          logDebug(`Received remote track`);
+          const remoteVideo = document.getElementById('remote-video');
+          if (remoteVideo.srcObject !== remoteStream) {
+            remoteVideo.srcObject = remoteStream;
+            remoteVideo.play().catch(e => logDebug("Video play error: " + e.message));
           }
         });
+
+        currentCall.on('close', () => {
+          logDebug("Call closed by peer");
+          window.endCall(false);
+        });
+
+        currentCall.on('error', (err) => {
+          logDebug("Call error: " + err);
+        });
+
       } catch (err) {
         alert("Failed to join call. Error: " + err.message);
         console.error(err);
       }
     }
 
-    async function processIceQueue() {
-      while(iceCandidateQueue.length > 0) {
-        const candidate = iceCandidateQueue.shift();
-        try {
-          await peerConnection.addIceCandidate(candidate);
-        } catch (e) {
-          console.error("Error adding queued ice candidate", e);
-        }
-      }
-    }
 
-    // Callee receives offer
-    async function handleWebrtcOffer(payload) {
-      try {
-        logDebug("Received Offer");
-        currentPeerSessionId = payload.fromSessionId;
-        if (!localStream) {
-          await initCall();
-        }
-        createPeerConnection(currentPeerSessionId);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        processIceQueue();
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        logDebug("Created & sent Answer");
-
-        channel.send({
-          type: 'broadcast',
-          event: 'webrtc-answer',
-          payload: {
-            targetSessionId: currentPeerSessionId,
-            sdp: peerConnection.localDescription
-          }
-        });
-      } catch (err) {
-        console.error("Error handling offer", err);
-        alert("Call error: " + err.message);
-      }
-    }
-
-    // Caller receives answer
-    async function handleWebrtcAnswer(payload) {
-      if (peerConnection) {
-        logDebug("Received Answer");
-        try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-          processIceQueue();
-        } catch(e) { logDebug("Answer error: " + e.message); }
-      }
-    }
-
-    // Both receive ICE candidate
-    async function handleWebrtcIceCandidate(payload) {
-      const candidate = new RTCIceCandidate(payload.candidate);
-      if (peerConnection && peerConnection.remoteDescription) {
-        try {
-          await peerConnection.addIceCandidate(candidate);
-        } catch (e) {
-          console.error("Error adding received ice candidate", e);
-        }
-      } else {
-        iceCandidateQueue.push(candidate);
-      }
-    }
 
     window.toggleMute = function () {
       if (localStream) {
@@ -634,9 +559,9 @@
           payload: { targetSessionId: currentPeerSessionId }
         });
       }
-      if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
+      if (currentCall) {
+        currentCall.close();
+        currentCall = null;
       }
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
