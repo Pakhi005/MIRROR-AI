@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://meet.jit.si/external_api.js"></script>
   <style>
     .top-bar {
       display: flex;
@@ -164,42 +164,9 @@
         <div class="badge badge-danger text-lg" id="call-timer" style="font-size: 18px; padding: 6px 16px;">30:00</div>
       </div>
 
-      <div
-        style="flex: 1; position: relative; background: #000; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-md);">
-        <video id="remote-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
-
-        <!-- Local Video PIP -->
-        <div
-          style="position: absolute; bottom: 24px; right: 24px; width: 200px; height: 150px; background: #222; border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;">
-          <video id="local-video" autoplay playsinline muted
-            style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
-        </div>
-
-        <!-- Controls -->
-        <div
-          style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 16px; z-index: 10; background: rgba(0,0,0,0.5); padding: 12px 24px; border-radius: 999px; backdrop-filter: blur(8px);">
-          <button id="btn-mute" class="btn btn-secondary"
-            style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;"
-            onclick="toggleMute()">
-            <i id="icon-mute" class="ti ti-microphone" style="font-size: 20px;"></i>
-          </button>
-          <button id="btn-camera" class="btn btn-secondary"
-            style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;"
-            onclick="toggleVideo()">
-            <i id="icon-camera" class="ti ti-video" style="font-size: 20px;"></i>
-          </button>
-          <button class="btn btn-danger"
-            style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;"
-            onclick="endCall()">
-            <i class="ti ti-phone-x" style="font-size: 20px;"></i>
-          </button>
-        </div>
+      <div id="jitsi-container" style="flex: 1; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-md); background: #000;">
+        <!-- Jitsi will mount here -->
       </div>
-    </div>
-
-    <!-- Debug Log -->
-    <div id="debug-log" style="position: fixed; bottom: 10px; left: 10px; width: 300px; height: 200px; background: rgba(0,0,0,0.7); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; pointer-events: none; border-radius: 8px;">
-      Debug Log Started...<br>
     </div>
 
     <!-- Connect Modal -->
@@ -278,7 +245,6 @@
 
     function initSupabasePresence() {
       if (channel) return; // already initialized
-      initPeerJS();
 
       channel = supabaseClient.channel('mirror-ai-peer-room', {
         config: {
@@ -391,90 +357,64 @@
       document.getElementById('request-overlay').style.display = 'none';
     }
 
-    function logDebug(msg) {
-      const debugDiv = document.getElementById('debug-log');
-      if (debugDiv) {
-        debugDiv.innerHTML += `<div>> ${msg}</div>`;
-        debugDiv.scrollTop = debugDiv.scrollHeight;
-      }
-      console.log(msg);
-    }
-
-    // --- WebRTC Logic ---
-    let localStream = null;
-    let peer = null;
-    let currentCall = null;
+    // --- Jitsi/Call Logic ---
     let currentPeerSessionId = null;
     let timerInterval;
-    let isMuted = false;
-    let isCameraOff = false;
+    let jitsiApi = null;
 
-    const servers = {
-      iceServers: [
-        { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
-        {
-          urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
-          username: "openrelayproject",
-          credential: "openrelayproject"
-        },
-        {
-          urls: ["turn:freestun.net:3478"],
-          username: "free",
-          credential: "free"
+    function startTimer() {
+      let seconds = 1800; // 30 minutes
+      document.getElementById('call-timer').innerText = "30:00";
+      timerInterval = setInterval(() => {
+        seconds--;
+        if (seconds <= 0) {
+          clearInterval(timerInterval);
+          window.endCall();
+        } else {
+          const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+          const s = (seconds % 60).toString().padStart(2, '0');
+          document.getElementById('call-timer').innerText = `${m}:${s}`;
         }
-      ]
-    };
-
-    async function initCall() {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      document.getElementById('local-video').srcObject = localStream;
-      document.getElementById('main-content').style.display = 'none';
-      document.getElementById('video-container').style.display = 'flex';
-      startTimer();
+      }, 1000);
     }
 
-    function initPeerJS() {
-      // Use the strict TURN servers we previously tested
-      peer = new Peer(mySessionId, {
-        config: servers,
-        debug: 2
-      });
-
-      peer.on('open', (id) => {
-        logDebug("PeerJS Initialized with ID: " + id);
-      });
-
-      peer.on('error', (err) => {
-        logDebug("PeerJS Error: " + err.type);
-        console.error(err);
-      });
-
-      peer.on('call', async (call) => {
-        logDebug("Incoming call received...");
-        if (!localStream) {
-          await initCall();
-        }
-        currentCall = call;
-        call.answer(localStream); // Answer the call with our stream
-
-        call.on('stream', (remoteStream) => {
-          logDebug(`Received remote track`);
-          const remoteVideo = document.getElementById('remote-video');
-          if (remoteVideo.srcObject !== remoteStream) {
-            remoteVideo.srcObject = remoteStream;
-            remoteVideo.play().catch(e => logDebug("Video play error: " + e.message));
+    function startJitsiCall(targetSessionId) {
+      document.getElementById('main-content').style.display = 'none';
+      document.getElementById('video-container').style.display = 'flex';
+      
+      const roomName = "MirrorAI_MockInterview_" + [mySessionId, targetSessionId].sort().join('_').replace(/-/g, '');
+      
+      const domain = 'meet.jit.si';
+      const options = {
+          roomName: roomName,
+          width: '100%',
+          height: '100%',
+          parentNode: document.querySelector('#jitsi-container'),
+          userInfo: {
+              displayName: myName
+          },
+          configOverwrite: {
+              prejoinPageEnabled: false,
+              startWithAudioMuted: false,
+              startWithVideoMuted: false
+          },
+          interfaceConfigOverwrite: {
+              TOOLBAR_BUTTONS: [
+                  'microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'chat'
+              ],
+              SHOW_JITSI_WATERMARK: false,
+              SHOW_WATERMARK_FOR_GUESTS: false,
+              DISABLE_JOIN_LEAVE_NOTIFICATIONS: true
           }
-        });
-
-        call.on('close', () => {
-          logDebug("Call closed by peer");
-          window.endCall(false);
-        });
-        
-        call.on('error', (err) => {
-          logDebug("Call error: " + err);
-        });
+      };
+      
+      jitsiApi = new JitsiMeetExternalAPI(domain, options);
+      
+      jitsiApi.addListener('readyToClose', () => {
+          window.endCall(true);
       });
+      
+      startTimer();
     }
 
     // Callee accepts
@@ -491,64 +431,17 @@
           fromSessionId: mySessionId
         }
       });
+      
+      startJitsiCall(currentPeerSessionId);
     }
 
     // Caller receives acceptance
     async function handleRequestAccepted(fromSessionId) {
       alert("Request Accepted! Joining call...");
-      try {
-        currentPeerSessionId = fromSessionId;
-        document.getElementById('peer-name').innerText = targetPeerName;
-
-        await initCall();
-        
-        logDebug("Calling peer...");
-        currentCall = peer.call(currentPeerSessionId, localStream);
-
-        currentCall.on('stream', (remoteStream) => {
-          logDebug(`Received remote track`);
-          const remoteVideo = document.getElementById('remote-video');
-          if (remoteVideo.srcObject !== remoteStream) {
-            remoteVideo.srcObject = remoteStream;
-            remoteVideo.play().catch(e => logDebug("Video play error: " + e.message));
-          }
-        });
-
-        currentCall.on('close', () => {
-          logDebug("Call closed by peer");
-          window.endCall(false);
-        });
-
-        currentCall.on('error', (err) => {
-          logDebug("Call error: " + err);
-        });
-
-      } catch (err) {
-        alert("Failed to join call. Error: " + err.message);
-        console.error(err);
-      }
-    }
-
-
-
-    window.toggleMute = function () {
-      if (localStream) {
-        isMuted = !isMuted;
-        localStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
-        document.getElementById('icon-mute').className = isMuted ? 'ti ti-microphone-off' : 'ti ti-microphone';
-        document.getElementById('btn-mute').classList.toggle('btn-danger', isMuted);
-        document.getElementById('btn-mute').classList.toggle('btn-secondary', !isMuted);
-      }
-    }
-
-    window.toggleVideo = function () {
-      if (localStream) {
-        isCameraOff = !isCameraOff;
-        localStream.getVideoTracks().forEach(track => track.enabled = !isCameraOff);
-        document.getElementById('icon-camera').className = isCameraOff ? 'ti ti-video-off' : 'ti ti-video';
-        document.getElementById('btn-camera').classList.toggle('btn-danger', isCameraOff);
-        document.getElementById('btn-camera').classList.toggle('btn-secondary', !isCameraOff);
-      }
+      currentPeerSessionId = fromSessionId;
+      document.getElementById('peer-name').innerText = targetPeerName;
+      
+      startJitsiCall(currentPeerSessionId);
     }
 
     window.endCall = async function (notify = true) {
@@ -559,26 +452,16 @@
           payload: { targetSessionId: currentPeerSessionId }
         });
       }
-      if (currentCall) {
-        currentCall.close();
-        currentCall = null;
+      if (jitsiApi) {
+        jitsiApi.dispose();
+        jitsiApi = null;
       }
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-      }
-      document.getElementById('local-video').srcObject = null;
-      document.getElementById('remote-video').srcObject = null;
-      currentPeerUserId = null;
-      iceCandidateQueue = [];
-      batchedIceCandidates = [];
-      clearTimeout(iceBatchTimeout);
-      iceBatchTimeout = null;
-
-      document.getElementById('main-content').style.display = 'block';
+      document.getElementById('jitsi-container').innerHTML = '';
       document.getElementById('video-container').style.display = 'none';
+      document.getElementById('main-content').style.display = 'block';
       clearInterval(timerInterval);
-      alert("Session ended.");
+      document.getElementById('call-timer').innerText = "30:00";
+      currentPeerSessionId = null;
     }
 
     function startTimer() {
