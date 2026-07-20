@@ -570,35 +570,50 @@
 
       peerConnection = new RTCPeerConnection({
         iceServers: [
+          // STUN servers - for basic NAT traversal
           { urls: ['stun:stun.l.google.com:19302'] },
           { urls: ['stun:stun1.l.google.com:19302'] },
           { urls: ['stun:stun2.l.google.com:19302'] },
           { urls: ['stun:stun3.l.google.com:19302'] },
-          { urls: ['stun:stun4.l.google.com:19302'] }
+          { urls: ['stun:stun4.l.google.com:19302'] },
+          // TURN servers - for relay when STUN fails (free OpenRelay servers)
+          { urls: ['turn:openrelay.metered.ca:80'], username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: ['turn:openrelay.metered.ca:443'], username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: ['turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' }
         ],
         iceCandidatePoolSize: 0
       });
 
       peerConnection.ontrack = (event) => {
         console.log('[PEER] Received remote track:', event.track.kind);
+        console.log('[PEER] Track enabled:', event.track.enabled);
+        console.log('[PEER] Streams:', event.streams.length);
         remoteStream = event.streams[0];
         if (remoteVideoEl) {
+          console.log('[PEER] Attaching remote stream to video element');
           remoteVideoEl.srcObject = remoteStream;
           remoteVideoEl.muted = false;
-          remoteVideoEl.play().catch(() => {});
+          remoteVideoEl.play().catch((err) => {
+            console.error('[PEER] Error playing remote video:', err);
+          });
         }
       };
 
       peerConnection.onicecandidate = async (event) => {
         if (event.candidate && currentPeerSessionId) {
-          console.log('[PEER] Sending ICE candidate');
+          console.log('[PEER] Sending ICE candidate:', event.candidate.candidate.substring(0, 50) + '...');
           await sendSignal('webrtc-ice-candidate', currentPeerSessionId, {
             candidate: event.candidate.toJSON()
           });
+        } else if (!event.candidate) {
+          console.log('[PEER] All ICE candidates gathered');
         }
       };
 
       peerConnection.onconnectionstatechange = () => {
+        console.log('[PEER] Connection state changed:', peerConnection.connectionState);
+        console.log('[PEER] ICE connection state:', peerConnection.iceConnectionState);
+        console.log('[PEER] Signaling state:', peerConnection.signalingState);
         if (peerConnection.connectionState === 'connected') {
           const statusEl = document.getElementById('conn-status');
           if (statusEl) {
@@ -606,6 +621,12 @@
             statusEl.style.color = '#4ade80';
             statusEl.style.borderColor = 'rgba(74,222,128,0.3)';
             statusEl.style.background = 'rgba(74,222,128,0.1)';
+          }
+        } else if (peerConnection.connectionState === 'failed') {
+          const statusEl = document.getElementById('conn-status');
+          if (statusEl) {
+            statusEl.innerText = '❌ Connection Failed';
+            statusEl.style.color = '#ff6b6b';
           }
         }
       };
@@ -730,13 +751,21 @@
     }
 
     async function handleIncomingIceCandidate(fromSessionId, candidate) {
-      if (peerConnection && candidate) {
-        try {
-          console.log('[PEER] Adding ICE candidate from:', fromSessionId);
-          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (err) {
-          console.warn('[PEER] ICE candidate ignored:', err.message);
-        }
+      if (!peerConnection) {
+        console.warn('[PEER] Ignoring ICE candidate - no peer connection yet');
+        return;
+      }
+      if (!candidate) {
+        console.warn('[PEER] Ignoring empty ICE candidate');
+        return;
+      }
+      try {
+        console.log('[PEER] Adding ICE candidate from:', fromSessionId);
+        console.log('[PEER] Candidate:', candidate.candidate.substring(0, 50) + '...');
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log('[PEER] ICE candidate added successfully');
+      } catch (err) {
+        console.warn('[PEER] ICE candidate error:', err.message);
       }
     }
 
