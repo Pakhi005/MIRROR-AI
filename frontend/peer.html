@@ -168,6 +168,12 @@
       </div>
     </nav>
 
+    <!-- DEBUG PANEL -->
+    <div id="debug-panel" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; font-family: monospace;">
+      <div><strong>🔍 Your Session ID:</strong> <code id="session-id-display" style="color: #10b981; user-select: all;">loading...</code></div>
+      <div style="margin-top: 4px;"><strong>📊 Firestore Status:</strong> <span id="firestore-status">initializing...</span></div>
+    </div>
+
     <main id="main-content">
       <h1 class="space-grotesk" style="font-size: 32px; margin-bottom: 24px;">Peer Connect</h1>
 
@@ -266,6 +272,19 @@
     let signalUnsubscribe = null;
     const SESSION_DURATION_MINUTES = 30;
 
+    // Display session ID on page load
+    console.log('[PEER] Page loaded - Your Session ID:', mySessionId);
+    const sessionIdDisplay = document.getElementById('session-id-display');
+    if (sessionIdDisplay) {
+      sessionIdDisplay.innerText = mySessionId;
+      sessionIdDisplay.title = 'Click to copy';
+      sessionIdDisplay.style.cursor = 'pointer';
+      sessionIdDisplay.onclick = () => {
+        navigator.clipboard.writeText(mySessionId);
+        alert('Session ID copied to clipboard!');
+      };
+    }
+
     // In-memory map of online users
     const onlineUsers = {};
 
@@ -294,6 +313,7 @@
       console.log('[PEER] Firebase db:', db ? 'initialized' : 'NOT INITIALIZED');
 
       const el = document.getElementById('conn-status');
+      const fsStatus = document.getElementById('firestore-status');
 
       try {
         // Write ourselves into the lobby
@@ -307,12 +327,14 @@
           year: myYear,
           ts: serverTimestamp()
         });
+        if (fsStatus) fsStatus.innerHTML = '<span style="color: #10b981;">✅ Connected</span>';
       } catch (err) {
         console.error('[PEER] ERROR writing to lobby:', err);
         if (el) { 
           el.innerText = '❌ Firestore Error: ' + err.message; 
           el.style.color = '#ff6b6b';
         }
+        if (fsStatus) fsStatus.innerHTML = '<span style="color: #ff6b6b;">❌ ' + err.message + '</span>';
         return;
       }
 
