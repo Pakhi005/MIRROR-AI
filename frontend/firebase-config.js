@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // TODO: Replace this with your actual Firebase config from the Firebase Console
 const firebaseConfig = {
@@ -18,4 +18,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-export { auth, db, provider, signInWithPopup, onAuthStateChanged, signOut, collection, addDoc, query, where, getDocs, orderBy, createUserWithEmailAndPassword, signInWithEmailAndPassword };
+console.log('[FIREBASE] Initialized - db:', db ? 'ready' : 'failed');
+
+export { auth, db, provider, signInWithPopup, onAuthStateChanged, signOut, collection, addDoc, query, where, getDocs, orderBy, createUserWithEmailAndPassword, signInWithEmailAndPassword, serverTimestamp };

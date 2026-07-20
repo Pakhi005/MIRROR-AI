@@ -291,20 +291,30 @@
       if (lobbyUnsubscribe) return;
 
       console.log('[PEER] Initializing lobby...');
+      console.log('[PEER] Firebase db:', db ? 'initialized' : 'NOT INITIALIZED');
 
       const el = document.getElementById('conn-status');
 
-      // Write ourselves into the lobby
-      const myRef = doc(db, 'peer-lobby', mySessionId);
-      console.log('[PEER] Writing self to lobby with sessionId:', mySessionId);
-      await setDoc(myRef, {
-        sessionId: mySessionId,
-        userId: myUuid,
-        name: myName,
-        domain: myDomain,
-        year: myYear,
-        ts: serverTimestamp()
-      });
+      try {
+        // Write ourselves into the lobby
+        const myRef = doc(db, 'peer-lobby', mySessionId);
+        console.log('[PEER] Writing self to lobby with sessionId:', mySessionId);
+        await setDoc(myRef, {
+          sessionId: mySessionId,
+          userId: myUuid,
+          name: myName,
+          domain: myDomain,
+          year: myYear,
+          ts: serverTimestamp()
+        });
+      } catch (err) {
+        console.error('[PEER] ERROR writing to lobby:', err);
+        if (el) { 
+          el.innerText = '❌ Firestore Error: ' + err.message; 
+          el.style.color = '#ff6b6b';
+        }
+        return;
+      }
 
       // Update heartbeat every 10s
       const heartbeatInterval = setInterval(async () => {
