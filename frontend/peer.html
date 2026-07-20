@@ -123,7 +123,7 @@
       </div>
     </nav>
 
-    <main>
+    <main id="main-content">
       <h1 class="space-grotesk" style="font-size: 32px; margin-bottom: 24px;">Peer Connect</h1>
       
       <div class="top-bar">
@@ -145,6 +145,36 @@
         <!-- Live users will be rendered here dynamically -->
       </div>
     </main>
+
+    <!-- Video Call UI -->
+    <div id="video-container" style="display: none; flex-direction: column; height: calc(100vh - 140px);">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="space-grotesk">In Call with <span id="peer-name">Peer</span></h2>
+        <div class="badge badge-danger text-lg" id="call-timer" style="font-size: 18px; padding: 6px 16px;">30:00</div>
+      </div>
+      
+      <div style="flex: 1; position: relative; background: #000; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-md);">
+        <video id="remote-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+        
+        <!-- Local Video PIP -->
+        <div style="position: absolute; bottom: 24px; right: 24px; width: 200px; height: 150px; background: #222; border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;">
+          <video id="local-video" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+        </div>
+        
+        <!-- Controls -->
+        <div style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 16px; z-index: 10; background: rgba(0,0,0,0.5); padding: 12px 24px; border-radius: 999px; backdrop-filter: blur(8px);">
+          <button id="btn-mute" class="btn btn-secondary" style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="toggleMute()">
+            <i id="icon-mute" class="ti ti-microphone" style="font-size: 20px;"></i>
+          </button>
+          <button id="btn-camera" class="btn btn-secondary" style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="toggleVideo()">
+            <i id="icon-camera" class="ti ti-video" style="font-size: 20px;"></i>
+          </button>
+          <button class="btn btn-danger" style="border-radius: 50%; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="endCall()">
+            <i class="ti ti-phone-x" style="font-size: 20px;"></i>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Connect Modal -->
     <div class="modal-overlay" id="request-overlay" style="display: none;">
@@ -177,17 +207,32 @@
     <a href="dashboard.html"><i class="ti ti-layout-dashboard" style="font-size: 24px;"></i> Dash</a>
   </div>
 
-  <script>
-    let myName = prompt("Enter your name for the session:", "Guest " + Math.floor(Math.random() * 1000));
-    if (!myName) myName = "Anonymous";
-    
-    let myDomain = prompt("Enter your domain (e.g., WebDev, AIML):", "Software Engineering");
-    if (!myDomain) myDomain = "Tech";
+  <script type="module">
+    import { auth, db, onAuthStateChanged } from './firebase-config.js';
+    import { doc, setDoc, getDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+    let myName = "Guest " + Math.floor(Math.random() * 1000);
+    let myDomain = "Software Engineering";
     let myYear = "Demo User";
     let pendingRequestSocketId = null;
+    let peerNameFromReq = "Peer";
+    let targetPeerName = "Peer";
 
     const socket = io('https://3.87.145.119.nip.io');
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          myName = userDoc.data().name || user.email.split('@')[0];
+        } else {
+          myName = user.email.split('@')[0];
+        }
+      }
+      if (socket.connected) {
+         socket.emit('join', { name: myName, domain: myDomain, year: myYear });
+      }
+    });
 
     socket.on('connect', () => {
       console.log("Connected to Socket.io server");
@@ -200,13 +245,11 @@
 
     socket.on('online-users', (users) => {
       document.getElementById('online-count').innerText = users.length;
-      
       const grid = document.getElementById('user-grid');
       grid.innerHTML = ''; 
 
       users.forEach((user, index) => {
         if (user.socketId === socket.id) return;
-
         const initials = user.name.substring(0, 2).toUpperCase();
         const colors = ['var(--accent-primary)', 'var(--accent-secondary)', 'var(--accent-danger)'];
         const badgeColors = ['badge-primary', 'badge-secondary', 'badge-danger'];
@@ -230,7 +273,7 @@
           <div>
             <span class="badge ${badgeColors[cIndex]}">${user.domain}</span>
           </div>
-          <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="connectPeer('${user.socketId}')">
+          <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="connectPeer('${user.socketId}', '${user.name.replace(/'/g, "\\'")}')">
             Connect <i class="ti ti-arrow-right"></i>
           </button>
         `;
@@ -238,8 +281,9 @@
       });
     });
 
-    function connectPeer(targetSocketId) {
-      alert("Request sent! Waiting for response...");
+    window.connectPeer = function(targetSocketId, peerName) {
+      targetPeerName = peerName;
+      alert("Request sent to " + peerName + "! Waiting for response...");
       socket.emit('connect-request', {
         targetSocketId,
         fromName: myName,
@@ -250,57 +294,221 @@
     socket.on('receive-request', (data) => {
       const { fromSocketId, fromName, fromDomain } = data;
       pendingRequestSocketId = fromSocketId;
+      peerNameFromReq = fromName;
       document.getElementById('request-text').innerText = `${fromName} wants to connect!`;
       document.getElementById('request-overlay').style.display = 'flex';
     });
 
-    function declineRequest() {
+    window.declineRequest = function() {
+      if (pendingRequestSocketId) {
+        socket.emit('connect-declined', { targetSocketId: pendingRequestSocketId });
+      }
       pendingRequestSocketId = null;
       document.getElementById('request-overlay').style.display = 'none';
     }
 
-    async function acceptRequest() {
+    socket.on('request-declined', () => {
+      alert("Your request was declined.");
+    });
+
+    // --- WebRTC Logic ---
+    let localStream = null;
+    let peerConnection = null;
+    let currentRoomId = null;
+    let timerInterval;
+    let isMuted = false;
+    let isCameraOff = false;
+
+    const servers = {
+      iceServers: [
+        { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
+      ]
+    };
+
+    async function initCall() {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      document.getElementById('local-video').srcObject = localStream;
+      document.getElementById('main-content').style.display = 'none';
+      document.getElementById('video-container').style.display = 'flex';
+      startTimer();
+    }
+
+    // Callee creates room and accepts
+    window.acceptRequest = async function() {
       document.getElementById('request-overlay').style.display = 'none';
-      
       try {
-        const response = await fetch('https://3.87.145.119.nip.io/create-room', { method: 'POST' });
-        const roomData = await response.json();
-        const roomUrl = roomData.url;
+        await initCall();
+        document.getElementById('peer-name').innerText = peerNameFromReq;
         
+        const roomRef = doc(collection(db, 'rooms'));
+        currentRoomId = roomRef.id;
+
+        peerConnection = new RTCPeerConnection(servers);
+        
+        peerConnection.oniceconnectionstatechange = () => {
+          if(peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
+             window.endCall();
+          }
+        };
+
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        const callerCandidatesCollection = collection(roomRef, 'callerCandidates');
+        peerConnection.onicecandidate = event => {
+          if (event.candidate) {
+            addDoc(callerCandidatesCollection, event.candidate.toJSON());
+          }
+        };
+
+        peerConnection.ontrack = event => {
+          document.getElementById('remote-video').srcObject = event.streams[0];
+        };
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        await setDoc(roomRef, { offer: { type: offer.type, sdp: offer.sdp } });
+
+        onSnapshot(roomRef, (snapshot) => {
+          const data = snapshot.data();
+          if (!peerConnection.currentRemoteDescription && data && data.answer) {
+            const rtcSessionDescription = new RTCSessionDescription(data.answer);
+            peerConnection.setRemoteDescription(rtcSessionDescription);
+          }
+        });
+
+        const calleeCandidatesCollection = collection(roomRef, 'calleeCandidates');
+        onSnapshot(calleeCandidatesCollection, snapshot => {
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'added') {
+              const candidate = new RTCIceCandidate(change.doc.data());
+              peerConnection.addIceCandidate(candidate);
+            }
+          });
+        });
+
         socket.emit('connect-accepted', {
           targetSocketId: pendingRequestSocketId,
-          roomUrl: roomUrl
+          roomId: currentRoomId
         });
-        
-        joinVideoRoom(roomUrl);
       } catch (err) {
-        alert("Failed to create room.");
+        alert("Failed to start call. Check microphone/camera permissions.");
         console.error(err);
       }
     }
 
-    socket.on('request-accepted', (data) => {
-      alert("Request Accepted! Joining room...");
-      joinVideoRoom(data.roomUrl);
+    // Caller joins room
+    socket.on('request-accepted', async (data) => {
+      alert("Request Accepted! Joining call...");
+      try {
+        await initCall();
+        document.getElementById('peer-name').innerText = targetPeerName;
+        currentRoomId = data.roomId;
+        const roomRef = doc(db, 'rooms', currentRoomId);
+        const roomSnapshot = await getDoc(roomRef);
+
+        if (roomSnapshot.exists()) {
+          peerConnection = new RTCPeerConnection(servers);
+          
+          peerConnection.oniceconnectionstatechange = () => {
+            if(peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
+               window.endCall();
+            }
+          };
+
+          localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+          const calleeCandidatesCollection = collection(roomRef, 'calleeCandidates');
+          peerConnection.onicecandidate = event => {
+            if (event.candidate) {
+              addDoc(calleeCandidatesCollection, event.candidate.toJSON());
+            }
+          };
+
+          peerConnection.ontrack = event => {
+            document.getElementById('remote-video').srcObject = event.streams[0];
+          };
+
+          const offer = roomSnapshot.data().offer;
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+
+          await updateDoc(roomRef, { answer: { type: answer.type, sdp: answer.sdp } });
+
+          const callerCandidatesCollection = collection(roomRef, 'callerCandidates');
+          onSnapshot(callerCandidatesCollection, snapshot => {
+            snapshot.docChanges().forEach(change => {
+              if (change.type === 'added') {
+                const candidate = new RTCIceCandidate(change.doc.data());
+                peerConnection.addIceCandidate(candidate);
+              }
+            });
+          });
+        }
+      } catch(err) {
+        alert("Failed to join call. Check microphone/camera permissions.");
+        console.error(err);
+      }
     });
 
-    function joinVideoRoom(url) {
-      window.open(url, "_blank");
-      
-      alert("A 30-minute practice session has started in a new tab! We'll ask you about it later.");
-      setTimeout(() => {
-        const feedback = confirm("Kya interview practice ki? (Click OK for Yes to get AI feedback)");
-        if (feedback) {
-           alert("Great! Feature: AI will now analyze the transcript.");
-        } else {
-           alert("Session ended normally.");
-        }
-      }, 30 * 60 * 1000); 
+    window.toggleMute = function() {
+      if (localStream) {
+        isMuted = !isMuted;
+        localStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
+        document.getElementById('icon-mute').className = isMuted ? 'ti ti-microphone-off' : 'ti ti-microphone';
+        document.getElementById('btn-mute').classList.toggle('btn-danger', isMuted);
+        document.getElementById('btn-mute').classList.toggle('btn-secondary', !isMuted);
+      }
     }
 
-    window.connectPeer = connectPeer;
-    window.declineRequest = declineRequest;
-    window.acceptRequest = acceptRequest;
+    window.toggleVideo = function() {
+      if (localStream) {
+        isCameraOff = !isCameraOff;
+        localStream.getVideoTracks().forEach(track => track.enabled = !isCameraOff);
+        document.getElementById('icon-camera').className = isCameraOff ? 'ti ti-video-off' : 'ti ti-video';
+        document.getElementById('btn-camera').classList.toggle('btn-danger', isCameraOff);
+        document.getElementById('btn-camera').classList.toggle('btn-secondary', !isCameraOff);
+      }
+    }
+
+    window.endCall = async function() {
+      if (peerConnection) {
+        peerConnection.close();
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      document.getElementById('local-video').srcObject = null;
+      document.getElementById('remote-video').srcObject = null;
+      
+      if (currentRoomId) {
+        try {
+          const roomRef = doc(db, 'rooms', currentRoomId);
+          await deleteDoc(roomRef);
+        } catch(e) {}
+      }
+      
+      document.getElementById('main-content').style.display = 'block';
+      document.getElementById('video-container').style.display = 'none';
+      clearInterval(timerInterval);
+      alert("Session ended.");
+    }
+
+    function startTimer() {
+      let timeLeft = 30 * 60;
+      const timerEl = document.getElementById('call-timer');
+      timerEl.innerText = "30:00";
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        const s = (timeLeft % 60).toString().padStart(2, '0');
+        timerEl.innerText = `${m}:${s}`;
+        if (timeLeft <= 0) {
+          window.endCall();
+        }
+      }, 1000);
+    }
   </script>
 </body>
 </html>

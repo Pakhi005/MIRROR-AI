@@ -45,10 +45,16 @@ io.on('connection', (socket) => {
 
   // When User B accepts the request
   socket.on('connect-accepted', (data) => {
-    // data: { targetSocketId, roomUrl }
-    const { targetSocketId, roomUrl } = data;
-    // Send the room URL back to User A
-    io.to(targetSocketId).emit('request-accepted', { roomUrl });
+    // data: { targetSocketId, roomId }
+    const { targetSocketId, roomId } = data;
+    // Send the room ID back to User A
+    io.to(targetSocketId).emit('request-accepted', { roomId });
+  });
+
+  // When User B declines the request
+  socket.on('connect-declined', (data) => {
+    const { targetSocketId } = data;
+    io.to(targetSocketId).emit('request-declined');
   });
 
   socket.on('disconnect', () => {
@@ -64,43 +70,6 @@ app.get('/', (req, res) => {
 
 app.get('/online-users', (req, res) => {
   res.json(Object.values(onlineUsers));
-});
-
-// Create a Daily.co room
-app.post('/create-room', async (req, res) => {
-  const DAILY_API_KEY = process.env.DAILY_API_KEY;
-  
-  if (!DAILY_API_KEY) {
-    // Fallback if no API key is provided
-    console.log("No Daily API Key found. Returning fallback room.");
-    return res.json({ url: "https://c.daily.co/demo" }); // fallback dummy
-  }
-
-  try {
-    const response = await fetch("https://api.daily.co/v1/rooms", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${DAILY_API_KEY}`
-      },
-      body: JSON.stringify({
-        properties: {
-          exp: Math.round(Date.now() / 1000) + 3600, // Expires in 1 hour
-        }
-      })
-    });
-    
-    const room = await response.json();
-    if (room.url) {
-      return res.json({ url: room.url });
-    } else {
-      throw new Error(room.error || "Failed to create room");
-    }
-  } catch (error) {
-    console.error("Error creating daily room:", error);
-    // Fallback on error
-    return res.json({ url: "https://c.daily.co/demo" });
-  }
 });
 
 const PORT = process.env.PORT || 3000;
