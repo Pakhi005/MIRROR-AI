@@ -359,23 +359,34 @@
 
       // Listen to lobby in real-time
       lobbyUnsubscribe = onSnapshot(collection(db, 'peer-lobby'), (snapshot) => {
+        console.log('[PEER] Lobby snapshot received with', snapshot.size, 'documents');
         if (el) { el.style.color = '#4ade80'; el.style.borderColor = 'rgba(74,222,128,0.3)'; el.style.background = 'rgba(74,222,128,0.1)'; el.innerText = '✅ Connected'; }
+        
+        const usersToShow = [];
         snapshot.forEach(d => {
           const data = d.data();
+          console.log('[PEER] User in lobby:', { id: d.id, sessionId: data.sessionId, name: data.name });
           if (data.sessionId && data.sessionId !== mySessionId) {
             onlineUsers[data.sessionId] = data;
+            usersToShow.push(data);
           }
         });
+        
         // Remove users no longer in snapshot
         const currentIds = new Set();
         snapshot.forEach(d => currentIds.add(d.id));
         for (const sid in onlineUsers) {
-          if (!currentIds.has(sid)) delete onlineUsers[sid];
+          if (!currentIds.has(sid)) {
+            console.log('[PEER] Removing user:', sid);
+            delete onlineUsers[sid];
+          }
         }
+        
+        console.log('[PEER] About to render', usersToShow.length, 'users');
         renderOnlineUsers(Object.values(onlineUsers));
       }, (err) => {
         if (el) { el.innerText = '❌ ' + err.message; }
-        console.error(err);
+        console.error('[PEER] Lobby listener error:', err);
       });
 
       // Listen for signals addressed to us
@@ -432,9 +443,15 @@
     }
 
     function renderOnlineUsers(users) {
+      console.log('[PEER] renderOnlineUsers called with', users.length, 'users:', users);
       document.getElementById('online-count').innerText = users.length;
       const grid = document.getElementById('user-grid');
       grid.innerHTML = '';
+
+      if (users.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-secondary);">No other users online. Open another window to test!</div>';
+        return;
+      }
 
       users.forEach((user, index) => {
         const initials = (user.name || '??').substring(0, 2).toUpperCase();
