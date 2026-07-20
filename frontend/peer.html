@@ -314,7 +314,7 @@
     // --- WebRTC Logic ---
     let localStream = null;
     let peerConnection = null;
-    let currentRoomId = null;
+    let currentPeerSocketId = null;
     let timerInterval;
     let isMuted = false;
     let isCameraOff = false;
@@ -333,121 +333,105 @@
       startTimer();
     }
 
-    // Callee creates room and accepts
-    window.acceptRequest = async function() {
-      document.getElementById('request-overlay').style.display = 'none';
-      try {
-        await initCall();
-        document.getElementById('peer-name').innerText = peerNameFromReq;
-        
-        const roomRef = doc(collection(db, 'rooms'));
-        currentRoomId = roomRef.id;
+    function createPeerConnection(targetSocketId) {
+      peerConnection = new RTCPeerConnection(servers);
+      
+      peerConnection.oniceconnectionstatechange = () => {
+        if(peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
+           window.endCall();
+        }
+      };
 
-        peerConnection = new RTCPeerConnection(servers);
-        
-        peerConnection.oniceconnectionstatechange = () => {
-          if(peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
-             window.endCall();
-          }
-        };
-
+      if (localStream) {
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-        const callerCandidatesCollection = collection(roomRef, 'callerCandidates');
-        peerConnection.onicecandidate = event => {
-          if (event.candidate) {
-            addDoc(callerCandidatesCollection, event.candidate.toJSON());
-          }
-        };
-
-        peerConnection.ontrack = event => {
-          document.getElementById('remote-video').srcObject = event.streams[0];
-        };
-
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        await setDoc(roomRef, { offer: { type: offer.type, sdp: offer.sdp } });
-
-        onSnapshot(roomRef, (snapshot) => {
-          const data = snapshot.data();
-          if (!peerConnection.currentRemoteDescription && data && data.answer) {
-            const rtcSessionDescription = new RTCSessionDescription(data.answer);
-            peerConnection.setRemoteDescription(rtcSessionDescription);
-          }
-        });
-
-        const calleeCandidatesCollection = collection(roomRef, 'calleeCandidates');
-        onSnapshot(calleeCandidatesCollection, snapshot => {
-          snapshot.docChanges().forEach(change => {
-            if (change.type === 'added') {
-              const candidate = new RTCIceCandidate(change.doc.data());
-              peerConnection.addIceCandidate(candidate);
-            }
-          });
-        });
-
-        socket.emit('connect-accepted', {
-          targetSocketId: pendingRequestSocketId,
-          roomId: currentRoomId
-        });
-      } catch (err) {
-        alert("Failed to start call. Check microphone/camera permissions.");
-        console.error(err);
       }
+
+      peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+          socket.emit('webrtc-ice-candidate', {
+            targetSocketId,
+            candidate: event.candidate
+          });
+        }
+      };
+
+      peerConnection.ontrack = event => {
+        document.getElementById('remote-video').srcObject = event.streams[0];
+      };
+      
+      return peerConnection;
     }
 
-    // Caller joins room
+    // Callee accepts
+    window.acceptRequest = async function() {
+      document.getElementById('request-overlay').style.display = 'none';
+      currentPeerSocketId = pendingRequestSocketId;
+      document.getElementById('peer-name').innerText = peerNameFromReq;
+      
+      socket.emit('connect-accepted', {
+        targetSocketId: currentPeerSocketId
+      });
+    }
+
+    // Caller receives acceptance
     socket.on('request-accepted', async (data) => {
       alert("Request Accepted! Joining call...");
       try {
-        await initCall();
+        currentPeerSocketId = data.fromSocketId;
         document.getElementById('peer-name').innerText = targetPeerName;
-        currentRoomId = data.roomId;
-        const roomRef = doc(db, 'rooms', currentRoomId);
-        const roomSnapshot = await getDoc(roomRef);
+        
+        await initCall();
+        createPeerConnection(currentPeerSocketId);
 
-        if (roomSnapshot.exists()) {
-          peerConnection = new RTCPeerConnection(servers);
-          
-          peerConnection.oniceconnectionstatechange = () => {
-            if(peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
-               window.endCall();
-            }
-          };
-
-          localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-          const calleeCandidatesCollection = collection(roomRef, 'calleeCandidates');
-          peerConnection.onicecandidate = event => {
-            if (event.candidate) {
-              addDoc(calleeCandidatesCollection, event.candidate.toJSON());
-            }
-          };
-
-          peerConnection.ontrack = event => {
-            document.getElementById('remote-video').srcObject = event.streams[0];
-          };
-
-          const offer = roomSnapshot.data().offer;
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-
-          await updateDoc(roomRef, { answer: { type: answer.type, sdp: answer.sdp } });
-
-          const callerCandidatesCollection = collection(roomRef, 'callerCandidates');
-          onSnapshot(callerCandidatesCollection, snapshot => {
-            snapshot.docChanges().forEach(change => {
-              if (change.type === 'added') {
-                const candidate = new RTCIceCandidate(change.doc.data());
-                peerConnection.addIceCandidate(candidate);
-              }
-            });
-          });
-        }
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        
+        socket.emit('webrtc-offer', {
+          targetSocketId: currentPeerSocketId,
+          sdp: offer
+        });
       } catch(err) {
-        alert("Failed to join call. Check microphone/camera permissions.");
+        alert("Failed to join call. Error: " + err.message);
         console.error(err);
+      }
+    });
+
+    // Callee receives offer
+    socket.on('webrtc-offer', async (data) => {
+      try {
+        if (!localStream) {
+          await initCall();
+        }
+        createPeerConnection(currentPeerSocketId); 
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        socket.emit('webrtc-answer', {
+          targetSocketId: currentPeerSocketId,
+          sdp: answer
+        });
+      } catch(err) {
+         console.error("Error handling offer", err);
+         alert("Call error: " + err.message);
+      }
+    });
+
+    // Caller receives answer
+    socket.on('webrtc-answer', async (data) => {
+      if (peerConnection && !peerConnection.currentRemoteDescription) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      }
+    });
+
+    // Both receive ICE candidate
+    socket.on('webrtc-ice-candidate', async (data) => {
+      if (peerConnection && data.candidate) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } catch (e) {
+          console.error("Error adding received ice candidate", e);
+        }
       }
     });
 
@@ -471,28 +455,31 @@
       }
     }
 
-    window.endCall = async function() {
+    window.endCall = async function(notify = true) {
+      if (notify && currentPeerSocketId) {
+        socket.emit('call-ended', { targetSocketId: currentPeerSocketId });
+      }
       if (peerConnection) {
         peerConnection.close();
+        peerConnection = null;
       }
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
       }
       document.getElementById('local-video').srcObject = null;
       document.getElementById('remote-video').srcObject = null;
-      
-      if (currentRoomId) {
-        try {
-          const roomRef = doc(db, 'rooms', currentRoomId);
-          await deleteDoc(roomRef);
-        } catch(e) {}
-      }
+      currentPeerSocketId = null;
       
       document.getElementById('main-content').style.display = 'block';
       document.getElementById('video-container').style.display = 'none';
       clearInterval(timerInterval);
       alert("Session ended.");
     }
+
+    socket.on('call-ended', () => {
+      window.endCall(false);
+    });
 
     function startTimer() {
       let timeLeft = 30 * 60;

@@ -45,16 +45,41 @@ io.on('connection', (socket) => {
 
   // When User B accepts the request
   socket.on('connect-accepted', (data) => {
-    // data: { targetSocketId, roomId }
-    const { targetSocketId, roomId } = data;
-    // Send the room ID back to User A
-    io.to(targetSocketId).emit('request-accepted', { roomId });
+    // data: { targetSocketId }
+    const { targetSocketId } = data;
+    io.to(targetSocketId).emit('request-accepted', { fromSocketId: socket.id });
   });
 
   // When User B declines the request
   socket.on('connect-declined', (data) => {
     const { targetSocketId } = data;
     io.to(targetSocketId).emit('request-declined');
+  });
+
+  // WebRTC Signaling
+  socket.on('webrtc-offer', (data) => {
+    io.to(data.targetSocketId).emit('webrtc-offer', {
+      sdp: data.sdp,
+      fromSocketId: socket.id
+    });
+  });
+
+  socket.on('webrtc-answer', (data) => {
+    io.to(data.targetSocketId).emit('webrtc-answer', {
+      sdp: data.sdp,
+      fromSocketId: socket.id
+    });
+  });
+
+  socket.on('webrtc-ice-candidate', (data) => {
+    io.to(data.targetSocketId).emit('webrtc-ice-candidate', {
+      candidate: data.candidate,
+      fromSocketId: socket.id
+    });
+  });
+
+  socket.on('call-ended', (data) => {
+    io.to(data.targetSocketId).emit('call-ended');
   });
 
   socket.on('disconnect', () => {
