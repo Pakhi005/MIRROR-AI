@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://meet.jit.si/external_api.js"></script>
+  <script src="https://unpkg.com/@daily-co/daily-js"></script>
   <style>
     .top-bar {
       display: flex;
@@ -164,8 +164,8 @@
         <div class="badge badge-danger text-lg" id="call-timer" style="font-size: 18px; padding: 6px 16px;">30:00</div>
       </div>
 
-      <div id="jitsi-container" style="flex: 1; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-md); background: #000;">
-        <!-- Jitsi will mount here -->
+      <div id="daily-container" style="flex: 1; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-md); background: #000; position: relative;">
+        <!-- Daily.co will mount here -->
       </div>
     </div>
 
@@ -264,18 +264,13 @@
 
       channel
         .on('presence', { event: 'sync' }, () => {
-          const state = channel.presenceState();
-          const users = [];
-          for (const key in state) {
-            state[key].forEach(presence => {
-              if (presence.sessionId) {
-                if (presence.sessionId !== mySessionId) users.push(presence);
-              } else {
-                if (presence.userId !== myUuid) users.push(presence);
-              }
-            });
-          }
-          renderOnlineUsers(users);
+          updateUserList();
+        })
+        .on('presence', { event: 'join' }, () => {
+          updateUserList();
+        })
+        .on('presence', { event: 'leave' }, () => {
+          updateUserList();
         })
         .on('broadcast', { event: 'connect-request' }, (payload) => {
           if (payload.payload.targetSessionId === mySessionId) {
@@ -305,6 +300,23 @@
             });
           }
         });
+    }
+
+    function updateUserList() {
+      if (!channel) return;
+      const state = channel.presenceState();
+      const users = [];
+      for (const key in state) {
+        state[key].forEach(presence => {
+          // Exclude our own session
+          if (presence.sessionId && presence.sessionId !== mySessionId) {
+            users.push(presence);
+          } else if (!presence.sessionId && presence.userId && presence.userId !== myUuid) {
+            users.push(presence);
+          }
+        });
+      }
+      renderOnlineUsers(users);
     }
 
     function renderOnlineUsers(users) {
@@ -371,63 +383,70 @@
       document.getElementById('request-overlay').style.display = 'none';
     }
 
-    // --- Jitsi/Call Logic ---
+    // --- Daily.co Call Logic ---
     let currentPeerSessionId = null;
     let timerInterval;
-    let jitsiApi = null;
+    let dailyCallFrame = null;
+
+    // 🔴 DAILY.CO BASE URL — replace with your Daily.co domain if you have one
+    // Rooms are auto-created with a unique name per call pair.
+    // Using Daily.co's demo/staging environment (works without API key):
+    const DAILY_DOMAIN = 'https://mirrorai.daily.co';
 
     function startTimer() {
-      let seconds = 1800; // 30 minutes
-      document.getElementById('call-timer').innerText = "30:00";
+      let timeLeft = 30 * 60;
+      const timerEl = document.getElementById('call-timer');
+      timerEl.innerText = "30:00";
+      clearInterval(timerInterval);
       timerInterval = setInterval(() => {
-        seconds--;
-        if (seconds <= 0) {
-          clearInterval(timerInterval);
-          window.endCall();
-        } else {
-          const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-          const s = (seconds % 60).toString().padStart(2, '0');
-          document.getElementById('call-timer').innerText = `${m}:${s}`;
-        }
+        timeLeft--;
+        const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        const s = (timeLeft % 60).toString().padStart(2, '0');
+        timerEl.innerText = `${m}:${s}`;
+        if (timeLeft <= 0) window.endCall();
       }, 1000);
     }
 
-    function startJitsiCall(targetSessionId) {
+    function startDailyCall(targetSessionId) {
       document.getElementById('main-content').style.display = 'none';
       document.getElementById('video-container').style.display = 'flex';
-      
-      const roomName = "MirrorAI_MockInterview_" + [mySessionId, targetSessionId].sort().join('_').replace(/-/g, '');
-      
-      const domain = 'meet.jit.si';
-      const options = {
-          roomName: roomName,
+
+      // Generate a deterministic, shared room name from both session IDs
+      const roomName = 'mirror-' + [mySessionId, targetSessionId].sort().join('').replace(/-/g, '').substring(0, 40);
+      const roomUrl = `${DAILY_DOMAIN}/${roomName}`;
+
+      const container = document.getElementById('daily-container');
+      container.innerHTML = '';
+
+      dailyCallFrame = window.DailyIframe.createFrame(container, {
+        iframeStyle: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
           width: '100%',
           height: '100%',
-          parentNode: document.querySelector('#jitsi-container'),
-          userInfo: {
-              displayName: myName
-          },
-          configOverwrite: {
-              prejoinPageEnabled: false,
-              startWithAudioMuted: false,
-              startWithVideoMuted: false
-          },
-          interfaceConfigOverwrite: {
-              TOOLBAR_BUTTONS: [
-                  'microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'chat'
-              ],
-              SHOW_JITSI_WATERMARK: false,
-              SHOW_WATERMARK_FOR_GUESTS: false,
-              DISABLE_JOIN_LEAVE_NOTIFICATIONS: true
-          }
-      };
-      
-      jitsiApi = new JitsiMeetExternalAPI(domain, options);
-      
-      jitsiApi.addListener('readyToClose', () => {
-          window.endCall(true);
+          border: 'none',
+          borderRadius: '16px'
+        },
+        showLeaveButton: true,
+        showFullscreenButton: true,
       });
-      
+
+      dailyCallFrame
+        .join({ url: roomUrl, userName: myName })
+        .catch(err => {
+          console.error('Daily.co join error:', err);
+          alert('Could not join the call: ' + err.message);
+          window.endCall(false);
+        });
+
+      dailyCallFrame.on('left-meeting', () => window.endCall(true));
+      dailyCallFrame.on('error', (e) => {
+        console.error('Daily.co error:', e);
+        alert('Call error: ' + (e.errorMsg || JSON.stringify(e)));
+        window.endCall(false);
+      });
+
       startTimer();
     }
 
@@ -446,7 +465,7 @@
         }
       });
       
-      startJitsiCall(currentPeerSessionId);
+      startDailyCall(currentPeerSessionId);
     }
 
     // Caller receives acceptance
@@ -455,7 +474,7 @@
       currentPeerSessionId = fromSessionId;
       document.getElementById('peer-name').innerText = targetPeerName;
       
-      startJitsiCall(currentPeerSessionId);
+      startDailyCall(currentPeerSessionId);
     }
 
     window.endCall = async function (notify = true) {
@@ -466,11 +485,11 @@
           payload: { targetSessionId: currentPeerSessionId }
         });
       }
-      if (jitsiApi) {
-        jitsiApi.dispose();
-        jitsiApi = null;
+      if (dailyCallFrame) {
+        dailyCallFrame.destroy();
+        dailyCallFrame = null;
       }
-      document.getElementById('jitsi-container').innerHTML = '';
+      document.getElementById('daily-container').innerHTML = '';
       document.getElementById('video-container').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
       clearInterval(timerInterval);
