@@ -388,10 +388,8 @@
     let timerInterval;
     let dailyCallFrame = null;
 
-    // 🔴 DAILY.CO BASE URL — replace with your Daily.co domain if you have one
-    // Rooms are auto-created with a unique name per call pair.
-    // Using Daily.co's demo/staging environment (works without API key):
-    const DAILY_DOMAIN = 'https://mirrorai.daily.co';
+    // ✅ Daily.co Room URL
+    const DAILY_ROOM_URL = 'https://peertopeer.daily.co/JO66MYdmRPyGYqLIE5wG';
 
     function startTimer() {
       let timeLeft = 30 * 60;
@@ -411,10 +409,6 @@
       document.getElementById('main-content').style.display = 'none';
       document.getElementById('video-container').style.display = 'flex';
 
-      // Generate a deterministic, shared room name from both session IDs
-      const roomName = 'mirror-' + [mySessionId, targetSessionId].sort().join('').replace(/-/g, '').substring(0, 40);
-      const roomUrl = `${DAILY_DOMAIN}/${roomName}`;
-
       const container = document.getElementById('daily-container');
       container.innerHTML = '';
 
@@ -433,7 +427,7 @@
       });
 
       dailyCallFrame
-        .join({ url: roomUrl, userName: myName })
+        .join({ url: DAILY_ROOM_URL, userName: myName })
         .catch(err => {
           console.error('Daily.co join error:', err);
           alert('Could not join the call: ' + err.message);
