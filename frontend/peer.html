@@ -6,7 +6,7 @@
   <title>Mirror AI - Peer Connect</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     .top-bar {
       display: flex;
@@ -209,19 +209,32 @@
 
   <script type="module">
     import { auth, db, onAuthStateChanged } from './firebase-config.js';
-    import { doc, setDoc, getDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 🔴 IMPORTANT: REPLACE THESE WITH YOUR SUPABASE CREDENTIALS 🔴
+    const SUPABASE_URL = "YOUR_SUPABASE_URL";
+    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+    
+    // Check if user has updated credentials
+    if (SUPABASE_URL === "YOUR_SUPABASE_URL") {
+      alert("WARNING: Supabase URL and Key are missing! Please edit peer.html and add your Supabase credentials at line 183.");
+    }
+
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let channel;
 
     let myName = "Guest " + Math.floor(Math.random() * 1000);
     let myDomain = "Software Engineering";
     let myYear = "Demo User";
-    let pendingRequestSocketId = null;
+    let myUuid = crypto.randomUUID();
+    
+    let pendingRequestUserId = null;
     let peerNameFromReq = "Peer";
     let targetPeerName = "Peer";
 
-    const socket = io('https://3.87.145.119.nip.io');
-
     onAuthStateChanged(auth, async (user) => {
       if (user) {
+        myUuid = user.uid; // use firebase uid for consistency
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           myName = userDoc.data().name || user.email.split('@')[0];
@@ -229,27 +242,78 @@
           myName = user.email.split('@')[0];
         }
       }
-      if (socket.connected) {
-         socket.emit('join', { name: myName, domain: myDomain, year: myYear });
-      }
+      initSupabasePresence();
     });
 
-    socket.on('connect', () => {
-      console.log("Connected to Socket.io server");
-      socket.emit('join', {
-        name: myName,
-        domain: myDomain,
-        year: myYear
+    // Fallback if auth is slow or anonymous
+    setTimeout(() => {
+      if(!channel) initSupabasePresence();
+    }, 2000);
+
+    function initSupabasePresence() {
+      if (channel) return; // already initialized
+      
+      channel = supabaseClient.channel('mirror-ai-peer-room', {
+        config: {
+          presence: { key: myUuid }
+        }
       });
-    });
 
-    socket.on('online-users', (users) => {
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState();
+          const users = [];
+          for (const key in state) {
+            state[key].forEach(presence => {
+               if(presence.userId !== myUuid) users.push(presence);
+            });
+          }
+          renderOnlineUsers(users);
+        })
+        .on('broadcast', { event: 'connect-request' }, (payload) => {
+           if(payload.payload.targetUserId === myUuid) {
+              pendingRequestUserId = payload.payload.fromUserId;
+              peerNameFromReq = payload.payload.fromName;
+              document.getElementById('request-text').innerText = `${payload.payload.fromName} wants to connect!`;
+              document.getElementById('request-overlay').style.display = 'flex';
+           }
+        })
+        .on('broadcast', { event: 'connect-declined' }, (payload) => {
+           if(payload.payload.targetUserId === myUuid) alert("Your request was declined.");
+        })
+        .on('broadcast', { event: 'connect-accepted' }, (payload) => {
+           if(payload.payload.targetUserId === myUuid) handleRequestAccepted(payload.payload.fromUserId);
+        })
+        .on('broadcast', { event: 'webrtc-offer' }, (payload) => {
+           if(payload.payload.targetUserId === myUuid) handleWebrtcOffer(payload.payload);
+        })
+        .on('broadcast', { event: 'webrtc-answer' }, (payload) => {
+           if(payload.payload.targetUserId === myUuid) handleWebrtcAnswer(payload.payload);
+        })
+        .on('broadcast', { event: 'webrtc-ice-candidate' }, (payload) => {
+           if(payload.payload.targetUserId === myUuid) handleWebrtcIceCandidate(payload.payload);
+        })
+        .on('broadcast', { event: 'call-ended' }, (payload) => {
+           if(payload.payload.targetUserId === myUuid) window.endCall(false);
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({
+              userId: myUuid,
+              name: myName,
+              domain: myDomain,
+              year: myYear
+            });
+          }
+        });
+    }
+
+    function renderOnlineUsers(users) {
       document.getElementById('online-count').innerText = users.length;
       const grid = document.getElementById('user-grid');
       grid.innerHTML = ''; 
 
       users.forEach((user, index) => {
-        if (user.socketId === socket.id) return;
         const initials = user.name.substring(0, 2).toUpperCase();
         const colors = ['var(--accent-primary)', 'var(--accent-secondary)', 'var(--accent-danger)'];
         const badgeColors = ['badge-primary', 'badge-secondary', 'badge-danger'];
@@ -273,48 +337,45 @@
           <div>
             <span class="badge ${badgeColors[cIndex]}">${user.domain}</span>
           </div>
-          <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="connectPeer('${user.socketId}', '${user.name.replace(/'/g, "\\'")}')">
+          <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="connectPeer('${user.userId}', '${user.name.replace(/'/g, "\\'")}')">
             Connect <i class="ti ti-arrow-right"></i>
           </button>
         `;
         grid.appendChild(card);
       });
-    });
+    }
 
-    window.connectPeer = function(targetSocketId, peerName) {
+    window.connectPeer = function(targetUserId, peerName) {
       targetPeerName = peerName;
       alert("Request sent to " + peerName + "! Waiting for response...");
-      socket.emit('connect-request', {
-        targetSocketId,
-        fromName: myName,
-        fromDomain: myDomain
+      channel.send({
+        type: 'broadcast',
+        event: 'connect-request',
+        payload: {
+          targetUserId,
+          fromUserId: myUuid,
+          fromName: myName,
+          fromDomain: myDomain
+        }
       });
     }
 
-    socket.on('receive-request', (data) => {
-      const { fromSocketId, fromName, fromDomain } = data;
-      pendingRequestSocketId = fromSocketId;
-      peerNameFromReq = fromName;
-      document.getElementById('request-text').innerText = `${fromName} wants to connect!`;
-      document.getElementById('request-overlay').style.display = 'flex';
-    });
-
     window.declineRequest = function() {
-      if (pendingRequestSocketId) {
-        socket.emit('connect-declined', { targetSocketId: pendingRequestSocketId });
+      if (pendingRequestUserId) {
+        channel.send({
+          type: 'broadcast',
+          event: 'connect-declined',
+          payload: { targetUserId: pendingRequestUserId }
+        });
       }
-      pendingRequestSocketId = null;
+      pendingRequestUserId = null;
       document.getElementById('request-overlay').style.display = 'none';
     }
-
-    socket.on('request-declined', () => {
-      alert("Your request was declined.");
-    });
 
     // --- WebRTC Logic ---
     let localStream = null;
     let peerConnection = null;
-    let currentPeerSocketId = null;
+    let currentPeerUserId = null;
     let timerInterval;
     let isMuted = false;
     let isCameraOff = false;
@@ -333,7 +394,7 @@
       startTimer();
     }
 
-    function createPeerConnection(targetSocketId) {
+    function createPeerConnection(targetUserId) {
       peerConnection = new RTCPeerConnection(servers);
       
       peerConnection.oniceconnectionstatechange = () => {
@@ -348,9 +409,13 @@
 
       peerConnection.onicecandidate = event => {
         if (event.candidate) {
-          socket.emit('webrtc-ice-candidate', {
-            targetSocketId,
-            candidate: event.candidate
+          channel.send({
+            type: 'broadcast',
+            event: 'webrtc-ice-candidate',
+            payload: {
+              targetUserId,
+              candidate: event.candidate
+            }
           });
         }
       };
@@ -365,75 +430,89 @@
     // Callee accepts
     window.acceptRequest = async function() {
       document.getElementById('request-overlay').style.display = 'none';
-      currentPeerSocketId = pendingRequestSocketId;
+      currentPeerUserId = pendingRequestUserId;
       document.getElementById('peer-name').innerText = peerNameFromReq;
       
-      socket.emit('connect-accepted', {
-        targetSocketId: currentPeerSocketId
+      channel.send({
+        type: 'broadcast',
+        event: 'connect-accepted',
+        payload: {
+          targetUserId: currentPeerUserId,
+          fromUserId: myUuid
+        }
       });
     }
 
     // Caller receives acceptance
-    socket.on('request-accepted', async (data) => {
+    async function handleRequestAccepted(fromUserId) {
       alert("Request Accepted! Joining call...");
       try {
-        currentPeerSocketId = data.fromSocketId;
+        currentPeerUserId = fromUserId;
         document.getElementById('peer-name').innerText = targetPeerName;
         
         await initCall();
-        createPeerConnection(currentPeerSocketId);
+        createPeerConnection(currentPeerUserId);
 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
         
-        socket.emit('webrtc-offer', {
-          targetSocketId: currentPeerSocketId,
-          sdp: offer
+        channel.send({
+          type: 'broadcast',
+          event: 'webrtc-offer',
+          payload: {
+            targetUserId: currentPeerUserId,
+            fromUserId: myUuid,
+            sdp: offer
+          }
         });
       } catch(err) {
         alert("Failed to join call. Error: " + err.message);
         console.error(err);
       }
-    });
+    }
 
     // Callee receives offer
-    socket.on('webrtc-offer', async (data) => {
+    async function handleWebrtcOffer(payload) {
       try {
         if (!localStream) {
           await initCall();
         }
-        createPeerConnection(currentPeerSocketId); 
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        createPeerConnection(currentPeerUserId); 
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         
-        socket.emit('webrtc-answer', {
-          targetSocketId: currentPeerSocketId,
-          sdp: answer
+        channel.send({
+          type: 'broadcast',
+          event: 'webrtc-answer',
+          payload: {
+            targetUserId: currentPeerUserId,
+            sdp: answer
+          }
         });
       } catch(err) {
          console.error("Error handling offer", err);
          alert("Call error: " + err.message);
       }
-    });
+    }
 
     // Caller receives answer
-    socket.on('webrtc-answer', async (data) => {
+    async function handleWebrtcAnswer(payload) {
       if (peerConnection && !peerConnection.currentRemoteDescription) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
       }
-    });
+    }
 
     // Both receive ICE candidate
-    socket.on('webrtc-ice-candidate', async (data) => {
-      if (peerConnection && data.candidate) {
+    async function handleWebrtcIceCandidate(payload) {
+      if (peerConnection && payload.candidate) {
         try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+          await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
         } catch (e) {
           console.error("Error adding received ice candidate", e);
         }
       }
-    });
+    }
 
     window.toggleMute = function() {
       if (localStream) {
@@ -456,8 +535,12 @@
     }
 
     window.endCall = async function(notify = true) {
-      if (notify && currentPeerSocketId) {
-        socket.emit('call-ended', { targetSocketId: currentPeerSocketId });
+      if (notify && currentPeerUserId) {
+        channel.send({
+          type: 'broadcast',
+          event: 'call-ended',
+          payload: { targetUserId: currentPeerUserId }
+        });
       }
       if (peerConnection) {
         peerConnection.close();
@@ -469,17 +552,13 @@
       }
       document.getElementById('local-video').srcObject = null;
       document.getElementById('remote-video').srcObject = null;
-      currentPeerSocketId = null;
+      currentPeerUserId = null;
       
       document.getElementById('main-content').style.display = 'block';
       document.getElementById('video-container').style.display = 'none';
       clearInterval(timerInterval);
       alert("Session ended.");
     }
-
-    socket.on('call-ended', () => {
-      window.endCall(false);
-    });
 
     function startTimer() {
       let timeLeft = 30 * 60;
