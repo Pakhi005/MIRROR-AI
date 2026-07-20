@@ -196,6 +196,11 @@
       </div>
     </div>
 
+    <!-- Debug Log -->
+    <div id="debug-log" style="position: fixed; bottom: 10px; left: 10px; width: 300px; height: 200px; background: rgba(0,0,0,0.7); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; pointer-events: none; border-radius: 8px;">
+      Debug Log Started...<br>
+    </div>
+
     <!-- Connect Modal -->
     <div class="modal-overlay" id="request-overlay" style="display: none;">
       <div class="modal-content" id="request-modal">
@@ -396,6 +401,15 @@
       document.getElementById('request-overlay').style.display = 'none';
     }
 
+    function logDebug(msg) {
+      const debugDiv = document.getElementById('debug-log');
+      if (debugDiv) {
+        debugDiv.innerHTML += `<div>> ${msg}</div>`;
+        debugDiv.scrollTop = debugDiv.scrollHeight;
+      }
+      console.log(msg);
+    }
+
     // --- WebRTC Logic ---
     let localStream = null;
     let peerConnection = null;
@@ -411,14 +425,14 @@
       iceServers: [
         { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
         {
-          urls: "turn:openrelay.metered.ca:80",
+          urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
           username: "openrelayproject",
           credential: "openrelayproject"
         },
         {
-          urls: "turn:openrelay.metered.ca:443",
-          username: "openrelayproject",
-          credential: "openrelayproject"
+          urls: ["turn:freestun.net:3478"],
+          username: "free",
+          credential: "free"
         }
       ]
     };
@@ -435,12 +449,14 @@
       peerConnection = new RTCPeerConnection(servers);
 
       peerConnection.oniceconnectionstatechange = () => {
+        logDebug(`ICE State: ${peerConnection.iceConnectionState}`);
         if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
           window.endCall();
         }
       };
 
       if (localStream) {
+        logDebug("Adding local tracks to PC");
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
       }
 
@@ -467,7 +483,10 @@
       };
 
       peerConnection.ontrack = event => {
-        document.getElementById('remote-video').srcObject = event.streams[0];
+        logDebug(`Received remote track: ${event.track.kind}`);
+        const remoteVideo = document.getElementById('remote-video');
+        remoteVideo.srcObject = event.streams[0];
+        remoteVideo.play().catch(e => logDebug("Video play error: " + e.message));
       };
 
       return peerConnection;
@@ -501,6 +520,7 @@
 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
+        logDebug("Created & sent Offer");
 
         channel.send({
           type: 'broadcast',
@@ -531,6 +551,7 @@
     // Callee receives offer
     async function handleWebrtcOffer(payload) {
       try {
+        logDebug("Received Offer");
         if (!localStream) {
           await initCall();
         }
@@ -539,6 +560,7 @@
         processIceQueue();
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
+        logDebug("Created & sent Answer");
 
         channel.send({
           type: 'broadcast',
@@ -556,9 +578,12 @@
 
     // Caller receives answer
     async function handleWebrtcAnswer(payload) {
-      if (peerConnection && !peerConnection.remoteDescription) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        processIceQueue();
+      if (peerConnection) {
+        logDebug("Received Answer");
+        try {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+          processIceQueue();
+        } catch(e) { logDebug("Answer error: " + e.message); }
       }
     }
 
