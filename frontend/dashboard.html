@@ -318,7 +318,7 @@
           <i class="ti ti-moon" id="theme-icon"></i>
         </button>
         <div class="avatar" id="logout-btn" style="cursor: pointer;" title="Logout">
-          JS
+          <i class="ti ti-logout" style="font-size: 20px;"></i>
         </div>
       </div>
     </nav>
@@ -393,6 +393,7 @@
     <a href="mock.html"><i class="ti ti-robot" style="font-size: 24px;"></i> AI Mock</a>
     <a href="peer.html"><i class="ti ti-users" style="font-size: 24px;"></i> Peer</a>
     <a href="dashboard.html" class="active"><i class="ti ti-layout-dashboard" style="font-size: 24px;"></i> Dash</a>
+    <a href="#" id="mobile-logout-btn"><i class="ti ti-logout" style="font-size: 24px;"></i> Logout</a>
   </div>
 
   <script type="module">
@@ -422,12 +423,14 @@
       }
     });
 
-    document.getElementById('logout-btn').addEventListener('click', async (e) => {
+    const handleLogout = async (e) => {
       e.preventDefault();
       if (confirm("Are you sure you want to logout? \nClick OK to logout, or Cancel to stay.")) {
         await signOut(auth);
       }
-    });
+    };
+    document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+    document.getElementById('mobile-logout-btn')?.addEventListener('click', handleLogout);
 
     async function loadDashboardData(uid) {
       console.log('Loading dashboard for UID:', uid);

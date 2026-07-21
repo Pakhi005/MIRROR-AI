@@ -266,7 +266,9 @@
       </a>
       <div class="nav-actions">
         <div class="badge badge-primary"><span class="online-dot" style="margin-right: 6px;"></span> Session Active (<span id="q-num">1</span>/12)</div>
-        <div class="avatar" id="logout-btn" style="cursor: pointer; margin-left: 12px;" title="Logout">JS</div>
+        <div class="avatar" id="logout-btn" style="cursor: pointer; margin-left: 12px;" title="Logout">
+          <i class="ti ti-logout" style="font-size: 20px;"></i>
+        </div>
       </div>
     </nav>
 
@@ -416,6 +418,7 @@
     <a href="mock.html" class="active"><i class="ti ti-robot" style="font-size: 24px;"></i> AI Mock</a>
     <a href="peer.html"><i class="ti ti-users" style="font-size: 24px;"></i> Peer</a>
     <a href="dashboard.html"><i class="ti ti-layout-dashboard" style="font-size: 24px;"></i> Dash</a>
+    <a href="#" id="mobile-logout-btn"><i class="ti ti-logout" style="font-size: 24px;"></i> Logout</a>
   </div>
 
   <script type="module">
@@ -431,15 +434,14 @@
       }
     });
 
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        if (confirm("Are you sure you want to logout? \nClick OK to logout, or Cancel to stay.")) {
-          await signOut(auth);
-        }
-      });
-    }
+    const handleLogout = async (e) => {
+      e.preventDefault();
+      if (confirm("Are you sure you want to logout? \nClick OK to logout, or Cancel to stay.")) {
+        await signOut(auth);
+      }
+    };
+    document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+    document.getElementById('mobile-logout-btn')?.addEventListener('click', handleLogout);
 
     let currentQuestion = 1;
     let conversationHistory = [];
