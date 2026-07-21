@@ -220,9 +220,27 @@
 
       <div id="daily-container"
         style="flex: 1; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-md); background: #000; position: relative;">
-        <!-- Daily.co will mount here -->
+        <!-- WebRTC video mounts here -->
+      </div>
+
+      <!-- Call Controls Bar -->
+      <div style="display:flex; justify-content:center; align-items:center; gap:16px; padding:20px 0 8px;">
+        <button id="mic-btn" onclick="window.toggleMic()" title="Toggle Microphone"
+          style="width:52px; height:52px; border-radius:50%; background:var(--bg-secondary); border:1.5px solid var(--border-color); color:var(--text-primary); font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;">
+          <i class="ti ti-microphone"></i>
+        </button>
+        <button onclick="window.endCall(true)"
+          style="width:64px; height:64px; border-radius:50%; background:var(--grad-danger); border:none; color:white; font-size:26px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 18px rgba(239,68,68,0.45); transition:transform 0.15s;"
+          title="End Call" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+          <i class="ti ti-phone-off"></i>
+        </button>
+        <button id="cam-btn" onclick="window.toggleCamera()" title="Toggle Camera"
+          style="width:52px; height:52px; border-radius:50%; background:var(--bg-secondary); border:1.5px solid var(--border-color); color:var(--text-primary); font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;">
+          <i class="ti ti-video"></i>
+        </button>
       </div>
     </div>
+
 
     <!-- Connect Modal -->
     <div class="modal-overlay" id="request-overlay" style="display: none;">
@@ -937,6 +955,40 @@
       pendingRoomName = null;
       isInitiator = false;
     }
+
+    // Toggle microphone
+    window.toggleMic = function () {
+      if (!localStream) return;
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (!audioTrack) return;
+      audioTrack.enabled = !audioTrack.enabled;
+      const btn = document.getElementById('mic-btn');
+      if (btn) {
+        btn.innerHTML = audioTrack.enabled
+          ? '<i class="ti ti-microphone"></i>'
+          : '<i class="ti ti-microphone-off"></i>';
+        btn.style.background = audioTrack.enabled ? 'var(--bg-secondary)' : 'rgba(239,68,68,0.15)';
+        btn.style.borderColor = audioTrack.enabled ? 'var(--border-color)' : 'var(--accent-danger)';
+        btn.style.color = audioTrack.enabled ? 'var(--text-primary)' : 'var(--accent-danger)';
+      }
+    };
+
+    // Toggle camera
+    window.toggleCamera = function () {
+      if (!localStream) return;
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (!videoTrack) return;
+      videoTrack.enabled = !videoTrack.enabled;
+      const btn = document.getElementById('cam-btn');
+      if (btn) {
+        btn.innerHTML = videoTrack.enabled
+          ? '<i class="ti ti-video"></i>'
+          : '<i class="ti ti-video-off"></i>';
+        btn.style.background = videoTrack.enabled ? 'var(--bg-secondary)' : 'rgba(239,68,68,0.15)';
+        btn.style.borderColor = videoTrack.enabled ? 'var(--border-color)' : 'var(--accent-danger)';
+        btn.style.color = videoTrack.enabled ? 'var(--text-primary)' : 'var(--accent-danger)';
+      }
+    };
   </script>
 </body>
 
