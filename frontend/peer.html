@@ -129,7 +129,7 @@
       overflow: hidden;
       background: #000;
       min-height: 220px;
-      border: 1px solid rgba(255,255,255,0.12);
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
     .video-card video {
@@ -169,9 +169,12 @@
     </nav>
 
     <!-- DEBUG PANEL -->
-    <div id="debug-panel" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; font-family: monospace;">
-      <div><strong>🔍 Your Session ID:</strong> <code id="session-id-display" style="color: #10b981; user-select: all;">loading...</code></div>
-      <div style="margin-top: 4px;"><strong>📊 Firestore Status:</strong> <span id="firestore-status">initializing...</span></div>
+    <div id="debug-panel"
+      style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; font-family: monospace;">
+      <div><strong>🔍 Your Session ID:</strong> <code id="session-id-display"
+          style="color: #10b981; user-select: all;">loading...</code></div>
+      <div style="margin-top: 4px;"><strong>📊 Firestore Status:</strong> <span
+          id="firestore-status">initializing...</span></div>
     </div>
 
     <main id="main-content">
@@ -181,7 +184,9 @@
         <div class="online-count text-primary">
           <span class="online-dot"></span> <span id="online-count">0</span> people online now
         </div>
-        <div id="conn-status" style="font-size: 12px; color: #facc15; padding: 4px 10px; background: rgba(250,204,21,0.1); border-radius: 999px; border: 1px solid rgba(250,204,21,0.3);">⏳ Connecting...</div>
+        <div id="conn-status"
+          style="font-size: 12px; color: #facc15; padding: 4px 10px; background: rgba(250,204,21,0.1); border-radius: 999px; border: 1px solid rgba(250,204,21,0.3);">
+          ⏳ Connecting...</div>
         <div class="filters">
           <select class="select-dropdown">
             <option>All Domains</option>
@@ -205,7 +210,8 @@
         <div class="badge badge-danger text-lg" id="call-timer" style="font-size: 18px; padding: 6px 16px;">30:00</div>
       </div>
 
-      <div id="daily-container" style="flex: 1; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-md); background: #000; position: relative;">
+      <div id="daily-container"
+        style="flex: 1; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-md); background: #000; position: relative;">
         <!-- Daily.co will mount here -->
       </div>
     </div>
@@ -255,7 +261,7 @@
     let myYear = "Demo User";
     function uuidv4() {
       if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
       });
@@ -330,8 +336,8 @@
         if (fsStatus) fsStatus.innerHTML = '<span style="color: #10b981;">✅ Connected</span>';
       } catch (err) {
         console.error('[PEER] ERROR writing to lobby:', err);
-        if (el) { 
-          el.innerText = '❌ Firestore Error: ' + err.message; 
+        if (el) {
+          el.innerText = '❌ Firestore Error: ' + err.message;
           el.style.color = '#ff6b6b';
         }
         if (fsStatus) fsStatus.innerHTML = '<span style="color: #ff6b6b;">❌ ' + err.message + '</span>';
@@ -342,7 +348,7 @@
       const heartbeatInterval = setInterval(async () => {
         try {
           await setDoc(myRef, { ts: serverTimestamp() }, { merge: true });
-        } catch(e) {}
+        } catch (e) { }
       }, 10000);
 
       // Clean up stale entries (older than 30s) every 15s
@@ -361,17 +367,17 @@
       lobbyUnsubscribe = onSnapshot(collection(db, 'peer-lobby'), (snapshot) => {
         console.log('[PEER] Lobby snapshot received with', snapshot.size, 'documents');
         if (el) { el.style.color = '#4ade80'; el.style.borderColor = 'rgba(74,222,128,0.3)'; el.style.background = 'rgba(74,222,128,0.1)'; el.innerText = '✅ Connected'; }
-        
+
         const usersToShow = [];
         snapshot.forEach(d => {
           const data = d.data();
           console.log('[PEER] User in lobby:', { id: d.id, sessionId: data.sessionId, name: data.name });
-          if (data.sessionId && data.sessionId !== mySessionId) {
+          if (data.sessionId && data.userId !== myUuid) {
             onlineUsers[data.sessionId] = data;
             usersToShow.push(data);
           }
         });
-        
+
         // Remove users no longer in snapshot
         const currentIds = new Set();
         snapshot.forEach(d => currentIds.add(d.id));
@@ -381,7 +387,7 @@
             delete onlineUsers[sid];
           }
         }
-        
+
         console.log('[PEER] About to render', usersToShow.length, 'users');
         renderOnlineUsers(Object.values(onlineUsers));
       }, (err) => {
@@ -643,7 +649,7 @@
         console.log('[PEER] Camera/mic access granted');
         if (localVideoEl) {
           localVideoEl.srcObject = localStream;
-          await localVideoEl.play().catch(() => {});
+          await localVideoEl.play().catch(() => { });
         }
       } catch (err) {
         console.error('[PEER] Camera/mic access failed:', err);
@@ -657,11 +663,11 @@
     async function attachLocalStreamToPeer() {
       const stream = await ensureLocalMedia();
       const pc = createPeerConnection();
-      
+
       // Check if tracks are already added
       const existingSenders = pc.getSenders();
       const existingTracks = new Set(existingSenders.map(s => s.track?.id));
-      
+
       stream.getTracks().forEach((track) => {
         if (!existingTracks.has(track.id)) {
           console.log('[PEER] Adding local track:', track.kind);
@@ -701,7 +707,7 @@
 
     async function handleIncomingOffer(fromSessionId, sdp) {
       console.log('[PEER] Received offer from:', fromSessionId);
-      
+
       // If this is the first time receiving an offer, initialize the connection
       if (!peerConnection) {
         await startWebRTCCall(fromSessionId, false);

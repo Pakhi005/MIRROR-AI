@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,20 +12,29 @@
       text-align: center;
       margin-bottom: 48px;
     }
-    
+
     .expert-grid {
       display: grid;
       gap: 24px;
       grid-template-columns: repeat(1, 1fr);
     }
+
     @media (min-width: 768px) {
-      .expert-grid { grid-template-columns: repeat(2, 1fr); }
+      .expert-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
+
     @media (min-width: 1024px) {
-      .expert-grid { grid-template-columns: repeat(3, 1fr); }
+      .expert-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
     }
+
     @media (min-width: 1280px) {
-      .expert-grid { grid-template-columns: repeat(4, 1fr); }
+      .expert-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
     }
 
     .expert-card {
@@ -38,7 +48,7 @@
       height: 200px;
       background: var(--bg-surface);
       position: relative;
-      background-image: linear-gradient(to bottom, rgba(255,45,120,0.1), rgba(17,24,39,1));
+      background-image: linear-gradient(to bottom, rgba(255, 45, 120, 0.1), rgba(17, 24, 39, 1));
       display: flex;
       align-items: center;
       justify-content: center;
@@ -75,11 +85,13 @@
       font-weight: 600;
       color: white;
     }
+
     .expert-role {
       font-size: 14px;
       color: var(--text-secondary);
       margin-top: 4px;
     }
+
     .expert-company {
       font-weight: 600;
       color: white;
@@ -91,23 +103,26 @@
       gap: 12px;
       font-size: 14px;
     }
+
     .rating {
       color: #FFD60A;
       display: flex;
       align-items: center;
       gap: 4px;
     }
-    
+
     .specializes {
       font-size: 12px;
       color: var(--text-muted);
       margin-bottom: 8px;
     }
+
     .tag-container {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
     }
+
     .tag {
       background: var(--bg-surface);
       border: 1px solid var(--border-color);
@@ -138,9 +153,9 @@
       padding: 8px 16px;
       font-size: 14px;
     }
-    
   </style>
 </head>
+
 <body>
 
   <div class="container page-load">
@@ -176,7 +191,7 @@
               <div class="expert-name space-grotesk">Arjun Mehta</div>
               <div class="expert-role">Senior SDE @ <span class="expert-company">Google</span></div>
             </div>
-            
+
             <div class="expert-stats">
               <div class="rating"><i class="ti ti-star-filled"></i> 4.9</div>
               <div class="text-muted">•</div>
@@ -192,7 +207,9 @@
             </div>
 
             <div class="expert-footer">
-              <div class="expert-price text-danger">₹ 299<span style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span></div>
+              <div class="expert-price text-danger">₹ 299<span
+                  style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span>
+              </div>
               <button class="btn btn-danger btn-book" onclick="showModal()">Book</button>
             </div>
           </div>
@@ -200,7 +217,8 @@
 
         <!-- Expert 2 -->
         <div class="card interactive expert-card">
-          <div class="expert-photo" style="color: var(--accent-secondary); background-image: linear-gradient(to bottom, rgba(123,47,255,0.1), rgba(17,24,39,1));">
+          <div class="expert-photo"
+            style="color: var(--accent-secondary); background-image: linear-gradient(to bottom, rgba(123,47,255,0.1), rgba(17,24,39,1));">
             <i class="ti ti-user-circle"></i>
             <div class="verified-badge"><i class="ti ti-check"></i> Verified</div>
           </div>
@@ -209,7 +227,7 @@
               <div class="expert-name space-grotesk">Sneha Rao</div>
               <div class="expert-role">Product Manager @ <span class="expert-company">Uber</span></div>
             </div>
-            
+
             <div class="expert-stats">
               <div class="rating"><i class="ti ti-star-filled"></i> 5.0</div>
               <div class="text-muted">•</div>
@@ -225,7 +243,9 @@
             </div>
 
             <div class="expert-footer">
-              <div class="expert-price text-danger">₹ 399<span style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span></div>
+              <div class="expert-price text-danger">₹ 399<span
+                  style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span>
+              </div>
               <button class="btn btn-danger btn-book" onclick="showModal()">Book</button>
             </div>
           </div>
@@ -233,7 +253,8 @@
 
         <!-- Expert 3 -->
         <div class="card interactive expert-card">
-          <div class="expert-photo" style="color: var(--accent-primary); background-image: linear-gradient(to bottom, rgba(0,217,255,0.1), rgba(17,24,39,1));">
+          <div class="expert-photo"
+            style="color: var(--accent-primary); background-image: linear-gradient(to bottom, rgba(0,217,255,0.1), rgba(17,24,39,1));">
             <i class="ti ti-user-circle"></i>
             <div class="verified-badge"><i class="ti ti-check"></i> Verified</div>
           </div>
@@ -242,7 +263,7 @@
               <div class="expert-name space-grotesk">Karan Singh</div>
               <div class="expert-role">Data Scientist @ <span class="expert-company">Amazon</span></div>
             </div>
-            
+
             <div class="expert-stats">
               <div class="rating"><i class="ti ti-star-filled"></i> 4.8</div>
               <div class="text-muted">•</div>
@@ -258,7 +279,9 @@
             </div>
 
             <div class="expert-footer">
-              <div class="expert-price text-danger">₹ 249<span style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span></div>
+              <div class="expert-price text-danger">₹ 249<span
+                  style="font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif;">/session</span>
+              </div>
               <button class="btn btn-danger btn-book" onclick="showModal()">Book</button>
             </div>
           </div>
@@ -293,4 +316,5 @@
     }
   </script>
 </body>
+
 </html>
