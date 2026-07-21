@@ -7,6 +7,7 @@
   <title>Mirror AI - Peer Connect</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪞</text></svg>">
   <style>
     .top-bar {
       display: flex;
@@ -272,6 +273,7 @@
 
     let myUuid = uuidv4();
     let mySessionId = uuidv4();
+    const processedSignals = new Set(); // prevent double-processing
 
     let pendingRequestSessionId = null;
     let pendingRoomName = null;
@@ -416,6 +418,9 @@
         (snapshot) => {
           snapshot.docChanges().forEach(async (change) => {
             if (change.type !== 'added') return;
+            const docId = change.doc.id;
+            if (processedSignals.has(docId)) return; // skip duplicates
+            processedSignals.add(docId);
             const sig = change.doc.data();
             console.log('[PEER] Signal received:', sig.event, 'from:', sig.fromSessionId);
             await deleteDoc(change.doc.ref); // consume signal
