@@ -513,7 +513,8 @@
     }
 
     function getDailyRoomUrl(roomName) {
-      return `https://peertopeer.daily.co/${roomName}`;
+      // Room name kept for signaling; actual video uses WebRTC directly
+      return roomName;
     }
 
     window.connectPeer = function (targetSessionId, peerName) {
@@ -605,19 +606,29 @@
         iceCandidatePoolSize: 0
       });
 
+      let remoteTrackTimer = null;
       peerConnection.ontrack = (event) => {
         console.log('[PEER] Received remote track:', event.track.kind);
-        console.log('[PEER] Track enabled:', event.track.enabled);
-        console.log('[PEER] Streams:', event.streams.length);
         remoteStream = event.streams[0];
-        if (remoteVideoEl) {
-          console.log('[PEER] Attaching remote stream to video element');
-          remoteVideoEl.srcObject = remoteStream;
-          remoteVideoEl.muted = false;
-          remoteVideoEl.play().catch((err) => {
-            console.error('[PEER] Error playing remote video:', err);
-          });
-        }
+        // Debounce: wait for all tracks (audio + video) before attaching
+        if (remoteTrackTimer) clearTimeout(remoteTrackTimer);
+        remoteTrackTimer = setTimeout(() => {
+          if (remoteVideoEl && remoteStream) {
+            console.log('[PEER] Attaching remote stream to video element');
+            if (remoteVideoEl.srcObject !== remoteStream) {
+              remoteVideoEl.srcObject = remoteStream;
+            }
+            remoteVideoEl.muted = false;
+            const playPromise = remoteVideoEl.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => {
+                if (err.name !== 'AbortError') {
+                  console.error('[PEER] Error playing remote video:', err);
+                }
+              });
+            }
+          }
+        }, 150);
       };
 
       peerConnection.onicecandidate = async (event) => {
