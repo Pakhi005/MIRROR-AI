@@ -210,7 +210,12 @@
     <div id="video-container" style="display: none; flex-direction: column; height: calc(100vh - 140px);">
       <div class="flex justify-between items-center mb-4">
         <h2 class="space-grotesk">In Call with <span id="peer-name">Peer</span></h2>
-        <div class="badge badge-danger text-lg" id="call-timer" style="font-size: 18px; padding: 6px 16px;">30:00</div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <button id="reconnect-btn" onclick="window.restartICE()" class="btn btn-secondary" style="display:none; padding:6px 14px; font-size:13px;">
+            <i class="ti ti-refresh"></i> Reconnect
+          </button>
+          <div class="badge badge-danger text-lg" id="call-timer" style="font-size: 18px; padding: 6px 16px;">30:00</div>
+        </div>
       </div>
 
       <div id="daily-container"
@@ -673,20 +678,65 @@
       };
 
       let iceRestartCount = 0;
+      let iceDisconnectTimer = null;
+
       peerConnection.oniceconnectionstatechange = async () => {
         const state = peerConnection.iceConnectionState;
         console.log('[PEER] ICE state changed:', state);
-        if ((state === 'disconnected' || state === 'failed') && isInitiator && iceRestartCount < 3) {
-          iceRestartCount++;
-          console.log(`[PEER] Attempting ICE restart (${iceRestartCount}/3)...`);
-          try {
-            const offer = await peerConnection.createOffer({ iceRestart: true });
-            await peerConnection.setLocalDescription(offer);
-            await sendSignal('webrtc-offer', currentPeerSessionId, { sdp: serializeSessionDescription(offer) });
-          } catch (err) {
-            console.error('[PEER] ICE restart failed:', err);
+
+        if (state === 'connected' || state === 'completed') {
+          // Clear any pending restart timer
+          if (iceDisconnectTimer) { clearTimeout(iceDisconnectTimer); iceDisconnectTimer = null; }
+          iceRestartCount = 0;
+          const btn = document.getElementById('reconnect-btn');
+          if (btn) btn.style.display = 'none';
+        }
+
+        if (state === 'disconnected') {
+          // Wait 4s — disconnected is often transient and recovers on its own
+          iceDisconnectTimer = setTimeout(async () => {
+            if (peerConnection && peerConnection.iceConnectionState === 'disconnected' && isInitiator && iceRestartCount < 2) {
+              iceRestartCount++;
+              console.log(`[PEER] Attempting ICE restart after disconnect (${iceRestartCount}/2)...`);
+              try {
+                const offer = await peerConnection.createOffer({ iceRestart: true });
+                await peerConnection.setLocalDescription(offer);
+                await sendSignal('webrtc-offer', currentPeerSessionId, { sdp: serializeSessionDescription(offer) });
+              } catch (err) { console.error('[PEER] ICE restart failed:', err); }
+            }
+          }, 4000);
+        }
+
+        if (state === 'failed') {
+          if (iceDisconnectTimer) { clearTimeout(iceDisconnectTimer); iceDisconnectTimer = null; }
+          if (isInitiator && iceRestartCount < 2) {
+            iceRestartCount++;
+            console.log(`[PEER] ICE failed — attempting hard restart (${iceRestartCount}/2)...`);
+            try {
+              const offer = await peerConnection.createOffer({ iceRestart: true });
+              await peerConnection.setLocalDescription(offer);
+              await sendSignal('webrtc-offer', currentPeerSessionId, { sdp: serializeSessionDescription(offer) });
+            } catch (err) { console.error('[PEER] Hard ICE restart failed:', err); }
+          } else {
+            // Show manual reconnect button as last resort
+            const btn = document.getElementById('reconnect-btn');
+            if (btn) btn.style.display = 'inline-flex';
           }
         }
+      };
+
+      // Manual reconnect triggered from UI button
+      window.restartICE = async function () {
+        if (!peerConnection || !currentPeerSessionId) return;
+        iceRestartCount = 0;
+        const btn = document.getElementById('reconnect-btn');
+        if (btn) btn.style.display = 'none';
+        console.log('[PEER] Manual ICE restart triggered');
+        try {
+          const offer = await peerConnection.createOffer({ iceRestart: true });
+          await peerConnection.setLocalDescription(offer);
+          await sendSignal('webrtc-offer', currentPeerSessionId, { sdp: serializeSessionDescription(offer) });
+        } catch (err) { console.error('[PEER] Manual ICE restart failed:', err); }
       };
 
       return peerConnection;
