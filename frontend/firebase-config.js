@@ -17,7 +17,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
-
+provider.setCustomParameters({ prompt: 'select_account' });
 console.log('[FIREBASE] Initialized - db:', db ? 'ready' : 'failed');
 
 export { auth, db, provider, signInWithPopup, onAuthStateChanged, signOut, collection, addDoc, query, where, getDocs, orderBy, createUserWithEmailAndPassword, signInWithEmailAndPassword, serverTimestamp };

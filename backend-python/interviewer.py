@@ -201,15 +201,23 @@ def evaluate_and_generate_next(state: InterviewState) -> InterviewState:
         state["next_question"] = "[Error: API key missing] Next question?"
         return state
 
+    latest_question = "Unknown"
+    if state['conversation_history']:
+        for msg in reversed(state['conversation_history']):
+            if msg.get('role') == 'assistant':
+                latest_question = msg.get('content')
+                break
+
     prompt = f"""Job Description:
 {state['jd_text']}
 
-The user answered the previous question with: "{state['current_answer']}"
+You asked this question: "{latest_question}"
+The user answered with: "{state['current_answer']}"
         
 Conversation History (Context):
 {json.dumps(state['conversation_history'])}
 
-Evaluate the user's answer, and then generate the NEXT question.
+Evaluate the user's answer to the question asked above, and then generate the NEXT question.
 Return ONLY JSON in this format:
 {{
   "score": <number out of 10>,

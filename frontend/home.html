@@ -30,7 +30,7 @@
     .mode-title {
       font-size: 24px;
       margin-bottom: 12px;
-      color: white;
+      color: var(--text-primary);
     }
 
     .mode-desc {
@@ -41,7 +41,7 @@
 
     .mode-price {
       font-weight: 600;
-      color: white;
+      color: var(--text-primary);
       margin-bottom: 4px;
     }
     
@@ -118,7 +118,7 @@
       font-weight: 500;
     }
     .stat-item span {
-      color: white;
+      color: var(--text-primary);
       font-weight: 600;
     }
     
@@ -138,8 +138,11 @@
       <a href="index.html" class="nav-brand">
         🪞 Mirror AI
       </a>
-      <div class="nav-actions">
-        <a href="dashboard.html" class="text-secondary hover:text-white" style="text-decoration: none;">
+      <div class="nav-actions" style="display: flex; align-items: center;">
+        <button class="theme-toggle" id="theme-btn" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; font-size:24px; display:flex; align-items:center; justify-content:center; margin-right: 16px;">
+          <i class="ti ti-moon" id="theme-icon"></i>
+        </button>
+        <a href="dashboard.html" class="text-secondary hover:text-primary" style="text-decoration: none; margin-right: 16px;">
           <i class="ti ti-layout-dashboard" style="font-size: 24px;"></i>
         </a>
         <div id="logout-btn" class="avatar" style="cursor: pointer;" title="Logout">
@@ -210,6 +213,19 @@
   <script type="module">
     import { auth, signOut, onAuthStateChanged } from './firebase-config.js';
     
+    // Theme initialization
+    const root = document.documentElement;
+    const icon = document.getElementById('theme-icon');
+    function applyTheme(t) {
+      root.setAttribute('data-theme', t);
+      icon.className = t === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
+      localStorage.setItem('mirrorTheme', t);
+    }
+    applyTheme(localStorage.getItem('mirrorTheme') || 'light');
+    document.getElementById('theme-btn').addEventListener('click', () => {
+      applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+
     // Auth Guard
     onAuthStateChanged(auth, (user) => {
       if (!user) {
