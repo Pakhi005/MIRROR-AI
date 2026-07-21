@@ -592,31 +592,36 @@
       remoteVideoEl = document.getElementById('remote-video');
     }
 
-    function createPeerConnection() {
+    // Fetch fresh TURN credentials from Metered.ca before every call
+    async function fetchTurnCredentials() {
+      try {
+        const res = await fetch(
+          'https://mirror-ai.metered.live/api/v1/turn/credentials?apiKey=NOnI3sjZPVtMCeVdYU05KuwxBh8LT0XIWq-97qW1gTqqSOUP'
+        );
+        const iceServers = await res.json();
+        console.log('[PEER] Fetched TURN credentials:', iceServers.length, 'servers');
+        return iceServers;
+      } catch (err) {
+        console.warn('[PEER] Failed to fetch TURN credentials, using fallback STUN:', err);
+        return [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun.cloudflare.com:3478' }
+        ];
+      }
+    }
+
+    async function createPeerConnection() {
       if (peerConnection) {
         console.log('[PEER] Reusing existing peer connection');
         return peerConnection;
       }
 
       console.log('[PEER] Creating new peer connection');
+      const iceServers = await fetchTurnCredentials();
 
       peerConnection = new RTCPeerConnection({
-        iceServers: [
-          // Google STUN
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          // Cloudflare STUN
-          { urls: 'stun:stun.cloudflare.com:3478' },
-          // Metered.ca free TURN (more ports for reliability)
-          { urls: 'turn:openrelay.metered.ca:80',              username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turns:openrelay.metered.ca:443',            username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-          // Freestun.net backup TURN
-          { urls: 'turn:freestun.net:3478',  username: 'free', credential: 'free' },
-          { urls: 'turns:freestun.net:5349', username: 'free', credential: 'free' },
-        ],
+        iceServers,
         iceCandidatePoolSize: 10
       });
 
@@ -764,7 +769,7 @@
 
     async function attachLocalStreamToPeer() {
       const stream = await ensureLocalMedia();
-      const pc = createPeerConnection();
+      const pc = await createPeerConnection();
 
       // Check if tracks are already added
       const existingSenders = pc.getSenders();
@@ -810,11 +815,9 @@
     async function handleIncomingOffer(fromSessionId, sdp) {
       console.log('[PEER] Received offer from:', fromSessionId);
 
-      // If this is the first time receiving an offer, initialize the connection
       if (!peerConnection) {
         await startWebRTCCall(fromSessionId, false);
       } else {
-        // Peer connection already exists, just set the remote description
         console.log('[PEER] Peer connection already exists, handling offer directly');
       }
 
