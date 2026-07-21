@@ -614,7 +614,7 @@
     async function fetchTurnCredentials() {
       try {
         const res = await fetch(
-          'https://mirror-ai.metered.live/api/v1/turn/credentials?apiKey=NOnI3sjZPVtMCeVdYU05KuwxBh8LT0XIWq-97qW1gTqqSOUP'
+          'https://mirror-ai.metered.live/api/v1/turn/credentials?apiKey=5e02dca5dbbd0a2eb62539012f6bcaa85249'
         );
         if (!res.ok) throw new Error(`Metered API Error: ${res.status}`);
         const iceServers = await res.json();
