@@ -18,7 +18,10 @@
     .stats-row {
       display: grid;
       gap: 24px;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 768px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
     }
     @media (min-width: 1024px) {
       .stats-row { grid-template-columns: repeat(4, 1fr); }
@@ -303,7 +306,7 @@
     }
   </style>
 </head>
-<body>
+<body style="display: none;">
 
   <div class="container page-load">
     <nav class="navbar" style="margin-bottom: 24px; padding: 12px 0;">
@@ -314,7 +317,7 @@
         <button class="theme-toggle" id="theme-btn" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; font-size:24px; display:flex; align-items:center; justify-content:center;">
           <i class="ti ti-moon" id="theme-icon"></i>
         </button>
-        <div class="avatar">
+        <div class="avatar" id="logout-btn" style="cursor: pointer;" title="Logout">
           JS
         </div>
       </div>
@@ -393,7 +396,7 @@
   </div>
 
   <script type="module">
-    import { auth, db, collection, query, where, getDocs, onAuthStateChanged } from './firebase-config.js';
+    import { auth, db, collection, query, where, getDocs, onAuthStateChanged, signOut } from './firebase-config.js';
 
     // Theme initialization
     const root = document.documentElement;
@@ -412,9 +415,17 @@
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
+        document.body.style.display = 'block';
         await loadDashboardData(user.uid);
       } else {
         window.location.href = 'index.html'; 
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (confirm("Are you sure you want to logout? \nClick OK to logout, or Cancel to stay.")) {
+        await signOut(auth);
       }
     });
 

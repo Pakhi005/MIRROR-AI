@@ -156,7 +156,7 @@
   </style>
 </head>
 
-<body>
+<body style="display: none;">
 
   <div class="container page-load">
     <nav class="navbar" style="margin-bottom: 24px; padding: 12px 0;">
@@ -167,7 +167,7 @@
         <a href="dashboard.html" class="text-secondary hover:text-white" style="text-decoration: none;">
           <i class="ti ti-layout-dashboard" style="font-size: 24px;"></i>
         </a>
-        <div class="avatar">
+        <div class="avatar" id="logout-btn" style="cursor: pointer;" title="Logout">
           JS
         </div>
       </div>
@@ -313,6 +313,26 @@
     }
     function hideModal() {
       document.getElementById('comingSoonModal').style.display = 'none';
+    }
+  </script>
+  <script type="module">
+    import { auth, onAuthStateChanged, signOut } from './firebase-config.js';
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        document.body.style.display = 'block';
+      } else {
+        window.location.href = 'index.html';
+      }
+    });
+
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (confirm("Are you sure you want to logout? \nClick OK to logout, or Cancel to stay.")) {
+          await signOut(auth);
+        }
+      });
     }
   </script>
 </body>

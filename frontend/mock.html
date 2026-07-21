@@ -257,7 +257,7 @@
     }
   </style>
 </head>
-<body>
+<body style="display: none;">
 
   <div class="container page-load">
     <nav class="navbar" style="margin-bottom: 24px; padding: 12px 0;">
@@ -266,6 +266,7 @@
       </a>
       <div class="nav-actions">
         <div class="badge badge-primary"><span class="online-dot" style="margin-right: 6px;"></span> Session Active (<span id="q-num">1</span>/12)</div>
+        <div class="avatar" id="logout-btn" style="cursor: pointer; margin-left: 12px;" title="Logout">JS</div>
       </div>
     </nav>
 
@@ -418,16 +419,27 @@
   </div>
 
   <script type="module">
-    import { auth, db, collection, addDoc, onAuthStateChanged } from './firebase-config.js';
+    import { auth, db, collection, addDoc, onAuthStateChanged, signOut } from './firebase-config.js';
     
     let currentUser = null;
     onAuthStateChanged(auth, (user) => {
       if (!user) {
         window.location.href = 'index.html';
       } else {
+        document.body.style.display = 'block';
         currentUser = user;
       }
     });
+
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (confirm("Are you sure you want to logout? \nClick OK to logout, or Cancel to stay.")) {
+          await signOut(auth);
+        }
+      });
+    }
 
     let currentQuestion = 1;
     let conversationHistory = [];

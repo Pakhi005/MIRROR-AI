@@ -153,7 +153,7 @@
   </style>
 </head>
 
-<body>
+<body style="display: none;">
 
   <div class="container page-load">
     <nav class="navbar" style="margin-bottom: 24px; padding: 12px 0;">
@@ -164,7 +164,7 @@
         <a href="dashboard.html" class="text-secondary hover:text-white" style="text-decoration: none;">
           <i class="ti ti-layout-dashboard" style="font-size: 24px;"></i>
         </a>
-        <div class="avatar">JS</div>
+        <div class="avatar" id="logout-btn" style="cursor: pointer;" title="Logout">JS</div>
       </div>
     </nav>
 
@@ -250,7 +250,7 @@
   </div>
 
   <script type="module">
-    import { auth, db, onAuthStateChanged } from './firebase-config.js';
+    import { auth, db, onAuthStateChanged, signOut } from './firebase-config.js';
     import {
       doc, getDoc, setDoc, deleteDoc, collection,
       onSnapshot, query, where, serverTimestamp, addDoc, getDocs
@@ -296,6 +296,7 @@
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
+        document.body.style.display = 'block';
         myUuid = user.uid;
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
@@ -305,9 +306,21 @@
         } else {
           myName = user.email.split('@')[0];
         }
+        initLobby();
+      } else {
+        window.location.href = 'index.html';
       }
-      initLobby();
     });
+
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (confirm("Are you sure you want to logout? \nClick OK to logout, or Cancel to stay.")) {
+          await signOut(auth);
+        }
+      });
+    }
 
     // Fallback if auth is slow
     setTimeout(() => { if (!lobbyUnsubscribe) initLobby(); }, 2500);
