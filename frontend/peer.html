@@ -171,9 +171,9 @@
       </div>
     </nav>
 
-    <!-- DEBUG PANEL -->
+    <!-- DEBUG PANEL (Hidden for production) -->
     <div id="debug-panel"
-      style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; font-family: monospace;">
+      style="display: none; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; font-family: monospace;">
       <div><strong>🔍 Your Session ID:</strong> <code id="session-id-display"
           style="color: #10b981; user-select: all;">loading...</code></div>
       <div style="margin-top: 4px;"><strong>📊 Firestore Status:</strong> <span
@@ -821,6 +821,15 @@
       document.getElementById('video-container').style.display = 'flex';
       setupVideoLayout();
       isInitiator = initiator;
+
+      // Log the peer meet for dashboard stats
+      try {
+        await addDoc(collection(db, 'peer-meets'), {
+          userId: myUuid,
+          peerSessionId: peerSessionId,
+          timestamp: serverTimestamp()
+        });
+      } catch(e) { console.warn('Could not log peer meet', e); }
 
       await attachLocalStreamToPeer();
       startTimer();

@@ -349,7 +349,7 @@
         </div>
         <div class="card stat-card">
           <div class="stat-label">Peers Met</div>
-          <div class="stat-value space-grotesk">0</div>
+          <div class="stat-value space-grotesk" id="peers-met">0</div>
           <div class="stat-change text-secondary">This month</div>
         </div>
       </div>
@@ -585,15 +585,143 @@
         
         renderChart(labels, dataPoints);
         
-      } catch (error) {
-        console.error("Error loading data:", error);
-        // If it's a missing index error, Firestore provides a direct link to create it
-        const errMsg = error.message || String(error);
-        if (errMsg.includes('index')) {
-          document.getElementById('recent-sessions').innerHTML = `<p style="color: var(--error)">Firestore needs an index. Check browser console for the creation link.</p>`;
         } else {
-          document.getElementById('recent-sessions').innerHTML = `<p style="color: var(--error)">Error: ${errMsg}</p>`;
+          let totalScore = 0;
+          const labels = [];
+          const dataPoints = [];
+          let sessionsHtml = '';
+          const weakAreasMap = {}; 
+          
+          const chartInterviews = [...interviews].reverse();
+          
+          chartInterviews.forEach((inv, index) => {
+            labels.push(`Session ${index + 1}`);
+            dataPoints.push(inv.overall_score || 0);
+          });
+
+          interviews.forEach((inv, index) => {
+            totalScore += inv.overall_score || 0;
+            if (inv.weakest_area) {
+              weakAreasMap[inv.weakest_area] = (weakAreasMap[inv.weakest_area] || 0) + 1;
+            }
+            
+            const d = new Date(inv.date);
+            const dateStr = d.toLocaleDateString();
+            const score = inv.overall_score || 0;
+            const scoreClass = score >= 7 ? 'score-high' : score >= 4 ? 'score-mid' : 'score-low';
+            
+            // Build question-wise scores table
+            let qsHtml = '';
+            const qs = inv.question_scores || [];
+            if (qs.length > 0) {
+              qsHtml = `<table class="qs-table">
+                <thead><tr><th>#</th><th>Question</th><th>Score</th></tr></thead>
+                <tbody>`;
+              qs.forEach(q => {
+                const qScore = q.score || 0;
+                const qClass = qScore >= 7 ? 'score-high' : qScore >= 4 ? 'score-mid' : 'score-low';
+                const questionText = (q.question || '').length > 120 
+                  ? q.question.substring(0, 120) + '…' 
+                  : (q.question || 'N/A');
+                qsHtml += `<tr>
+                  <td>Q${q.qNum || '?'}</td>
+                  <td>${questionText}</td>
+                  <td><span class="qs-score ${qClass}">${qScore}/10</span></td>
+                </tr>`;
+              });
+              qsHtml += `</tbody></table>`;
+            } else {
+              qsHtml = `<p class="no-qs-data">Question-wise scores not available for this session.</p>`;
+            }
+
+            // Build JD section
+            const jdText = inv.jd_text || '';
+            const jdSection = jdText 
+              ? `<div class="jd-section">
+                  <h4><i class="ti ti-file-description"></i> Job Description</h4>
+                  <div class="jd-text" id="jd-${inv.id}">${jdText}</div>
+                  <button class="jd-toggle" onclick="toggleJD('${inv.id}')">
+                    ${jdText.length > 150 ? 'View Full JD ▼' : ''}
+                  </button>
+                </div>`
+              : `<div class="jd-section">
+                  <h4><i class="ti ti-file-description"></i> Job Description</h4>
+                  <p class="no-qs-data">JD not saved for this session.</p>
+                </div>`;
+            
+            sessionsHtml += `
+              <div class="session-card">
+                <div class="session-item" onclick="toggleDetail('detail-${inv.id}', this)">
+                  <div class="session-info">
+                    <div class="session-icon">🤖</div>
+                    <div>
+                      <div class="session-title">${inv.role || 'Interview'}</div>
+                      <div class="session-meta">
+                        <span class="score-badge ${scoreClass}">Score: ${score}/10</span>
+                        <span><i class="ti ti-calendar"></i> ${dateStr}</span>
+                        <span><i class="ti ti-list-check"></i> ${qs.length} Qs</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="session-action">
+                    <button class="btn-expand" title="View Details"><i class="ti ti-chevron-down"></i></button>
+                  </div>
+                </div>
+                <div class="session-detail" id="detail-${inv.id}">
+                  <div class="session-detail-inner">
+                    ${jdSection}
+                    <div class="qs-section">
+                      <h4><i class="ti ti-chart-bar"></i> Question-wise Scores</h4>
+                      ${qsHtml}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          });
+          
+          const avg = (totalScore / total).toFixed(1);
+          document.getElementById('avg-score').innerHTML = `${avg}<span style="font-size: 18px; color: var(--text-muted);">/10</span>`;
+          document.getElementById('recent-sessions').innerHTML = sessionsHtml;
+          
+          // Render weak areas with my new progress bars format
+          const sortedWeakAreas = Object.entries(weakAreasMap).sort((a,b) => b[1] - a[1]);
+          let weakAreasHtml = '';
+          const colors = ['text-danger', 'text-warning', 'text-primary'];
+          const fillColors = ['fill-low', 'fill-mid', 'fill-high'];
+
+          sortedWeakAreas.slice(0, 3).forEach(([area, count], idx) => {
+            const fakePct = 100 - (idx * 20);
+            weakAreasHtml += `
+              <div class="area-item">
+                <div class="area-label">
+                  <span class="${colors[idx]}">${area}</span>
+                  <span class="mono text-muted">Frequency: ${count}</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill ${fillColors[idx]}" style="width: ${fakePct}%;"></div></div>
+              </div>
+            `;
+          });
+          
+          document.getElementById('weak-areas').innerHTML = weakAreasHtml || `<div class="text-secondary">None recorded</div>`;
+          renderChart(labels, dataPoints);
         }
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+        document.getElementById('recent-sessions').innerHTML = 
+          `<p style="color: var(--accent-danger)">Failed to load data. Please refresh.</p>`;
+      }
+
+      // Load Peer Meets count
+      try {
+        const peerQ = query(
+          collection(db, 'peer-meets'),
+          where('userId', '==', uid)
+        );
+        const peerSnap = await getDocs(peerQ);
+        document.getElementById('peers-met').innerText = peerSnap.size;
+      } catch(err) {
+        console.warn('Could not load peer meets', err);
       }
     }
 
